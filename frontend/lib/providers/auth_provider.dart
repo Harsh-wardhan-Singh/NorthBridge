@@ -66,4 +66,62 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<bool> signIn({
+    required String email,
+    required String password,
+  }) async {
+    _isMutating = true;
+    notifyListeners();
+
+    try {
+      final user = await _authService.signInWithCredentials(
+        email: email,
+        password: password,
+      );
+
+      if (user == null) {
+        _state = ViewState<UserModel>.error('Invalid email or password.');
+        return false;
+      }
+
+      _state = ViewState<UserModel>.success(user);
+      return true;
+    } catch (_) {
+      _state = ViewState<UserModel>.error('Unable to sign in right now.');
+      return false;
+    } finally {
+      _isMutating = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> signUp({
+    required String name,
+    required String location,
+    required String email,
+    required String password,
+  }) async {
+    _isMutating = true;
+    notifyListeners();
+
+    try {
+      final user = await _authService.signUpWithCredentials(
+        name: name,
+        location: location,
+        email: email,
+        password: password,
+      );
+      _state = ViewState<UserModel>.success(user);
+      return true;
+    } catch (_) {
+      _state = ViewState<UserModel>.error(
+        'Unable to sign up. Try another email.',
+      );
+      return false;
+    } finally {
+      _isMutating = false;
+      notifyListeners();
+    }
+  }
 }

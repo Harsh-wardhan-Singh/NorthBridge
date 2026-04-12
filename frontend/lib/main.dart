@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/theme/app_theme.dart';
 import 'package:frontend/providers/auth_provider.dart';
+import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
 
@@ -18,6 +19,7 @@ class NorthBridgeApp extends StatefulWidget {
 class _NorthBridgeAppState extends State<NorthBridgeApp> {
   late final TaskProvider _taskProvider;
   late final AuthProvider _authProvider;
+  late final ChatProvider _chatProvider;
 
   @override
   void initState() {
@@ -26,12 +28,15 @@ class _NorthBridgeAppState extends State<NorthBridgeApp> {
     _taskProvider.loadTasks();
     _authProvider = AuthProvider();
     _authProvider.loadCurrentUser();
+    _chatProvider = ChatProvider();
+    _chatProvider.loadChats();
   }
 
   @override
   void dispose() {
     _taskProvider.dispose();
     _authProvider.dispose();
+    _chatProvider.dispose();
     super.dispose();
   }
 
@@ -44,11 +49,13 @@ class _NorthBridgeAppState extends State<NorthBridgeApp> {
       routes: AppRoutes.routes(
         taskProvider: _taskProvider,
         authProvider: _authProvider,
+        chatProvider: _chatProvider,
       ),
       onGenerateRoute: (settings) => AppRoutes.onGenerateRoute(
         settings,
         taskProvider: _taskProvider,
         authProvider: _authProvider,
+        chatProvider: _chatProvider,
       ),
     );
   }

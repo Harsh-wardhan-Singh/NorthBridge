@@ -16,11 +16,15 @@ class TaskService {
     required String location,
     required double price,
     required DateTime scheduledAt,
+    String postedByUserId = 'u_1001',
+    String postedByName = 'Aarav Sharma',
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     return TaskModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
+      postedByUserId: postedByUserId,
+      postedByName: postedByName,
       title: title,
       description: description,
       location: location,

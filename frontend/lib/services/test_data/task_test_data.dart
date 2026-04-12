@@ -1,6 +1,8 @@
 const List<Map<String, dynamic>> taskPreviewApiResponse = [
   {
     'id': '1',
+    'postedByUserId': 'u_1001',
+    'postedByName': 'Aarav Sharma',
     'title': 'Pick up groceries',
     'description': 'Need help buying basic groceries for tonight.',
     'location': 'Sector 21, Gurgaon',
@@ -10,6 +12,8 @@ const List<Map<String, dynamic>> taskPreviewApiResponse = [
   },
   {
     'id': '2',
+    'postedByUserId': 'u_1001',
+    'postedByName': 'Aarav Sharma',
     'title': 'Assemble study table',
     'description': 'Flat-pack table assembly with basic tools.',
     'location': 'Indirapuram, Ghaziabad',
@@ -19,6 +23,8 @@ const List<Map<String, dynamic>> taskPreviewApiResponse = [
   },
   {
     'id': '3',
+    'postedByUserId': 'u_1002',
+    'postedByName': 'Meera Verma',
     'title': 'Drop parcel at courier',
     'description': 'Small package to be dropped at nearby courier point.',
     'location': 'Dwarka, New Delhi',

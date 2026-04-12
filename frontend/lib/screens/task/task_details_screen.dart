@@ -48,6 +48,13 @@ class TaskDetailsScreen extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(task.title, style: theme.textTheme.titleLarge),
+                          const SizedBox(height: AppSpacing.xxs),
+                          Text(
+                            'Posted by ${task.postedByName}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(task.location,
                               style: theme.textTheme.bodyMedium),

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
+import 'package:frontend/models/chat_model.dart';
 import 'package:frontend/models/voice_task_draft_model.dart';
 import 'package:frontend/providers/auth_provider.dart';
+import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/providers/voice_provider.dart';
 import 'package:frontend/screens/auth/auth_screen.dart';
+import 'package:frontend/screens/chat/chat_list_screen.dart';
+import 'package:frontend/screens/chat/chat_thread_screen.dart';
 import 'package:frontend/screens/home/home_screen.dart';
 import 'package:frontend/screens/task/task_details_screen.dart';
 import 'package:frontend/screens/task/task_post_screen.dart';
@@ -15,6 +19,8 @@ import 'package:frontend/voice/voice_preview_screen.dart';
 class AppRoutes {
   static const String taskRoot = TaskRootScreen.routeName;
   static const String auth = AuthScreen.routeName;
+  static const String chat = ChatListScreen.routeName;
+  static const String chatThread = ChatThreadScreen.routeName;
   static const String home = HomeScreen.routeName;
   static const String taskDetails = TaskDetailsScreen.routeName;
   static const String taskPost = TaskPostScreen.routeName;
@@ -25,11 +31,13 @@ class AppRoutes {
   static Map<String, WidgetBuilder> routes({
     required TaskProvider taskProvider,
     required AuthProvider authProvider,
+    required ChatProvider chatProvider,
   }) {
     return {
       taskRoot: (_) => TaskRootScreen(taskProvider: taskProvider),
       home: (_) => HomeScreen(taskProvider: taskProvider),
       auth: (_) => AuthScreen(authProvider: authProvider),
+      chat: (_) => ChatListScreen(chatProvider: chatProvider),
     };
   }
 
@@ -37,6 +45,7 @@ class AppRoutes {
     RouteSettings settings, {
     required TaskProvider taskProvider,
     required AuthProvider authProvider,
+    required ChatProvider chatProvider,
   }) {
     if (settings.name == taskDetails) {
       final args = settings.arguments;
@@ -97,6 +106,30 @@ class AppRoutes {
       );
     }
 
+    if (settings.name == chatThread) {
+      final args = settings.arguments;
+      if (args is ChatThreadArgs) {
+        return MaterialPageRoute<void>(
+          builder: (_) => ChatThreadScreen(
+            chatProvider: chatProvider,
+            chat: args.chat,
+          ),
+          settings: settings,
+        );
+      }
+
+      return MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          body: Center(
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: const Text('Invalid chat thread route arguments.'),
+            ),
+          ),
+        ),
+      );
+    }
+
     return null;
   }
 
@@ -120,6 +153,20 @@ class AppRoutes {
 
   static Future<T?> goToAuth<T extends Object?>(BuildContext context) {
     return Navigator.of(context).pushNamed<T>(auth);
+  }
+
+  static Future<T?> goToChat<T extends Object?>(BuildContext context) {
+    return Navigator.of(context).pushNamed<T>(chat);
+  }
+
+  static Future<T?> goToChatThread<T extends Object?>(
+    BuildContext context, {
+    required ChatModel chatModel,
+  }) {
+    return Navigator.of(context).pushNamed<T>(
+      chatThread,
+      arguments: ChatThreadArgs(chat: chatModel),
+    );
   }
 
   static Future<VoiceTaskDraftModel?> goToVoiceInput(BuildContext context) {
@@ -147,4 +194,10 @@ class VoicePreviewArgs {
   const VoicePreviewArgs({required this.draft});
 
   final VoiceTaskDraftModel draft;
+}
+
+class ChatThreadArgs {
+  const ChatThreadArgs({required this.chat});
+
+  final ChatModel chat;
 }

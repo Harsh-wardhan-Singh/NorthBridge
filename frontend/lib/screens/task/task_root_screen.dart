@@ -46,6 +46,11 @@ class _TaskRootScreenState extends State<TaskRootScreen> {
         title: Text(_selectedIndex == 0 ? 'Tasks' : 'Create task'),
         actions: [
           IconButton(
+            onPressed: () => AppRoutes.goToChat(context),
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Chats',
+          ),
+          IconButton(
             onPressed: () => AppRoutes.goToAuth(context),
             icon: const Icon(Icons.person_outline),
             tooltip: 'Account',

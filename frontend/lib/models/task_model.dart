@@ -1,6 +1,8 @@
 class TaskModel {
   const TaskModel({
     required this.id,
+    required this.postedByUserId,
+    required this.postedByName,
     required this.title,
     required this.description,
     required this.location,
@@ -10,6 +12,8 @@ class TaskModel {
   });
 
   final String id;
+  final String postedByUserId;
+  final String postedByName;
   final String title;
   final String description;
   final String location;
@@ -20,6 +24,8 @@ class TaskModel {
   factory TaskModel.fromJson(Map<String, dynamic> json) {
     return TaskModel(
       id: json['id'] as String,
+      postedByUserId: json['postedByUserId'] as String,
+      postedByName: json['postedByName'] as String,
       title: json['title'] as String,
       description: json['description'] as String,
       location: json['location'] as String,
@@ -32,6 +38,8 @@ class TaskModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'postedByUserId': postedByUserId,
+      'postedByName': postedByName,
       'title': title,
       'description': description,
       'location': location,

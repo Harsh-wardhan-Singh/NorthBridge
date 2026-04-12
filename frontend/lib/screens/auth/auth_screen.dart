@@ -3,8 +3,9 @@ import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/widgets/app_button.dart';
 import 'package:frontend/widgets/app_card.dart';
+import 'package:frontend/widgets/app_text_field.dart';
 
-class AuthScreen extends StatelessWidget {
+class AuthScreen extends StatefulWidget {
   const AuthScreen({
     super.key,
     required this.authProvider,
@@ -15,12 +16,82 @@ class AuthScreen extends StatelessWidget {
   final AuthProvider authProvider;
 
   @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  bool _isLogin = true;
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _locationController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final authProvider = widget.authProvider;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email and password are required.')),
+      );
+      return;
+    }
+
+    bool success;
+    if (_isLogin) {
+      success = await authProvider.signIn(email: email, password: password);
+    } else {
+      final name = _nameController.text.trim();
+      final location = _locationController.text.trim();
+
+      if (name.isEmpty || location.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Name and location are required.')),
+        );
+        return;
+      }
+
+      success = await authProvider.signUp(
+        name: name,
+        location: location,
+        email: email,
+        password: password,
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final message = success
+        ? (_isLogin
+            ? 'Signed in successfully.'
+            : 'Account created successfully.')
+        : (authProvider.state.message ?? 'Authentication failed.');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Account'),
+        title: const Text('Login / Signup'),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -28,9 +99,9 @@ class AuthScreen extends StatelessWidget {
           child: Padding(
             padding: AppSpacing.screenPadding,
             child: AnimatedBuilder(
-              animation: authProvider,
+              animation: widget.authProvider,
               builder: (context, _) {
-                final state = authProvider.state;
+                final state = widget.authProvider.state;
                 final user = state.data;
 
                 return AppCard(
@@ -38,24 +109,114 @@ class AuthScreen extends StatelessWidget {
                     padding: AppSpacing.cardPadding,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisSize: MainAxisSize.max,
                       children: [
-                        Text('Authentication',
-                            style: theme.textTheme.titleLarge),
+                        Text(
+                          'Authentication',
+                          style: theme.textTheme.titleLarge,
+                        ),
                         const SizedBox(height: AppSpacing.xs),
                         Text(
-                          state.isLoading
-                              ? 'Loading account state...'
-                              : state.isError
-                                  ? (state.message ?? 'Something went wrong.')
-                                  : state.isEmpty
-                                      ? (state.message ??
-                                          'No authenticated user.')
-                                      : 'Signed in as ${user?.name ?? ''}',
+                          user == null
+                              ? (_isLogin
+                                  ? 'Sign in to continue.'
+                                  : 'Create your account to continue.')
+                              : 'Signed in as ${user.name}',
                           style: theme.textTheme.bodyMedium,
                         ),
-                        if (user != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: widget.authProvider.isMutating
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _isLogin = true;
+                                        });
+                                      },
+                                icon: Icon(
+                                  Icons.login,
+                                  size: 18,
+                                  color: _isLogin
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurface,
+                                ),
+                                label: const Text('Login'),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: widget.authProvider.isMutating
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _isLogin = false;
+                                        });
+                                      },
+                                icon: Icon(
+                                  Icons.person_add_alt_1,
+                                  size: 18,
+                                  color: !_isLogin
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurface,
+                                ),
+                                label: const Text('Signup'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        if (!_isLogin) ...[
+                          AppTextField(
+                            label: 'Full name',
+                            controller: _nameController,
+                          ),
                           const SizedBox(height: AppSpacing.xs),
+                          AppTextField(
+                            label: 'Location',
+                            controller: _locationController,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                        ],
+                        AppTextField(
+                          label: 'Email',
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        AppTextField(
+                          label: 'Password',
+                          controller: _passwordController,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        AppButton(
+                          label: widget.authProvider.isMutating
+                              ? 'Please wait...'
+                              : (_isLogin ? 'Login' : 'Create Account'),
+                          onPressed:
+                              widget.authProvider.isMutating ? null : _submit,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        OutlinedButton(
+                          onPressed: widget.authProvider.isMutating
+                              ? null
+                              : widget.authProvider.signOutMock,
+                          child: const Text('Sign out'),
+                        ),
+                        if (state.isError) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            state.message ?? 'Authentication error.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
+                        ],
+                        if (user != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
                           Text(
                             '${user.location} • Rating ${user.rating.toStringAsFixed(1)}',
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -63,37 +224,6 @@ class AuthScreen extends StatelessWidget {
                             ),
                           ),
                         ],
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: authProvider.isMutating
-                                    ? null
-                                    : authProvider.loadCurrentUser,
-                                child: const Text('Refresh'),
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Expanded(
-                              child: FilledButton(
-                                onPressed: authProvider.isMutating
-                                    ? null
-                                    : authProvider.signInMock,
-                                child: const Text('Sign in mock'),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppButton(
-                          label: authProvider.isMutating
-                              ? 'Please wait...'
-                              : 'Sign out mock',
-                          onPressed: authProvider.isMutating
-                              ? null
-                              : authProvider.signOutMock,
-                        ),
                       ],
                     ),
                   ),

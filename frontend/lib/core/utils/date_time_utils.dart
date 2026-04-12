@@ -25,3 +25,10 @@ String formatTaskTime(DateTime dateTime) {
   final period = local.hour >= 12 ? 'PM' : 'AM';
   return '$hour:$minute $period';
 }
+
+String formatChatTime(DateTime dateTime) {
+  final local = dateTime.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
+}

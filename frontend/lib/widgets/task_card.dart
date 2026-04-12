@@ -29,6 +29,13 @@ class TaskCard extends StatelessWidget {
               task.title,
               style: theme.textTheme.titleMedium,
             ),
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              'Posted by ${task.postedByName}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: AppSpacing.xs),
             Row(
               children: [
