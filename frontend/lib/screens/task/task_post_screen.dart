@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
+import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
@@ -10,6 +11,7 @@ class TaskPostScreen extends StatefulWidget {
   const TaskPostScreen({
     super.key,
     required this.taskProvider,
+    required this.authProvider,
     this.showAppBar = true,
     this.closeOnSuccess = true,
     this.onTaskCreated,
@@ -18,6 +20,7 @@ class TaskPostScreen extends StatefulWidget {
   static const String routeName = '/task/post';
 
   final TaskProvider taskProvider;
+  final AuthProvider authProvider;
   final bool showAppBar;
   final bool closeOnSuccess;
   final VoidCallback? onTaskCreated;
@@ -95,6 +98,13 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
   }
 
   Future<void> _submit() async {
+    if (widget.authProvider.state.data == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login first to create a task.')),
+      );
+      return;
+    }
+
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
     final location = _locationController.text.trim();
@@ -144,6 +154,13 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
   }
 
   Future<void> _openVoiceFlow() async {
+    if (widget.authProvider.state.data == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login first to create a task.')),
+      );
+      return;
+    }
+
     final draft = await AppRoutes.goToVoiceInput(context);
     if (!mounted || draft == null) {
       return;

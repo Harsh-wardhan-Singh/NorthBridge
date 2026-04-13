@@ -3,7 +3,9 @@ import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
 import 'package:frontend/models/chat_model.dart';
 import 'package:frontend/providers/chat_provider.dart';
+import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
+import 'package:frontend/widgets/user_name_with_avatar.dart';
 
 class ChatThreadScreen extends StatefulWidget {
   const ChatThreadScreen({
@@ -120,10 +122,12 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                       style: theme.textTheme.titleMedium,
                     ),
                     const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      'Posted by ${widget.chat.taskOwnerName}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    UserNameWithAvatar(
+                      userId: widget.chat.taskOwnerUserId,
+                      name: widget.chat.taskOwnerName,
+                      onTap: () => AppRoutes.goToPublicProfile(
+                        context,
+                        userId: widget.chat.taskOwnerUserId,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),

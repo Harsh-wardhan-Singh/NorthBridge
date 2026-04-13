@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/screens/home/home_screen.dart';
@@ -8,11 +9,13 @@ class TaskRootScreen extends StatefulWidget {
   const TaskRootScreen({
     super.key,
     required this.taskProvider,
+    required this.authProvider,
   });
 
   static const String routeName = '/tasks';
 
   final TaskProvider taskProvider;
+  final AuthProvider authProvider;
 
   @override
   State<TaskRootScreen> createState() => _TaskRootScreenState();
@@ -31,6 +34,7 @@ class _TaskRootScreenState extends State<TaskRootScreen> {
       ),
       TaskPostScreen(
         taskProvider: widget.taskProvider,
+        authProvider: widget.authProvider,
         showAppBar: false,
         closeOnSuccess: false,
         onTaskCreated: () {
@@ -46,14 +50,19 @@ class _TaskRootScreenState extends State<TaskRootScreen> {
         title: Text(_selectedIndex == 0 ? 'Tasks' : 'Create task'),
         actions: [
           IconButton(
+            onPressed: () => AppRoutes.goToTaskHistory(context),
+            icon: const Icon(Icons.history_outlined),
+            tooltip: 'History',
+          ),
+          IconButton(
             onPressed: () => AppRoutes.goToChat(context),
             icon: const Icon(Icons.chat_bubble_outline),
             tooltip: 'Chats',
           ),
           IconButton(
-            onPressed: () => AppRoutes.goToAuth(context),
+            onPressed: () => AppRoutes.goToProfile(context),
             icon: const Icon(Icons.person_outline),
-            tooltip: 'Account',
+            tooltip: 'Profile',
           ),
         ],
       ),
@@ -76,6 +85,15 @@ class _TaskRootScreenState extends State<TaskRootScreen> {
           ),
         ],
         onDestinationSelected: (value) {
+          if (value == 1 && widget.authProvider.state.data == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please login first to create a task.'),
+              ),
+            );
+            return;
+          }
+
           setState(() {
             _selectedIndex = value;
           });

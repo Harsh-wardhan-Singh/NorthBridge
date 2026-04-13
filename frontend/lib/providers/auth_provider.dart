@@ -124,4 +124,50 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<UserModel?> loadUserById(String userId) {
+    return _authService.getUserById(userId);
+  }
+
+  Future<bool> updateProfile({
+    required String name,
+    required String bio,
+    required String location,
+    required String phoneNumber,
+    required String email,
+    required List<String> skills,
+    required String profileImageUrl,
+  }) async {
+    _isMutating = true;
+    notifyListeners();
+
+    try {
+      final updated = await _authService.updateCurrentUserProfile(
+        name: name,
+        bio: bio,
+        location: location,
+        phoneNumber: phoneNumber,
+        email: email,
+        skills: skills,
+        profileImageUrl: profileImageUrl,
+      );
+
+      if (updated == null) {
+        _state = ViewState<UserModel>.error(
+          'No authenticated user to update profile.',
+        );
+        return false;
+      }
+
+      _state = ViewState<UserModel>.success(updated);
+      return true;
+    } catch (_) {
+      _state =
+          ViewState<UserModel>.error('Unable to update profile right now.');
+      return false;
+    } finally {
+      _isMutating = false;
+      notifyListeners();
+    }
+  }
 }

@@ -8,6 +8,8 @@ class AuthService {
   static final Map<String, String> _credentialStore = {
     'aarav@northbridge.app': 'pass1234',
     'meera@northbridge.app': 'pass1234',
+    'rohan@northbridge.app': 'pass1234',
+    'nisha@northbridge.app': 'pass1234',
   };
 
   UserModel? _currentUser;
@@ -18,6 +20,20 @@ class AuthService {
         ? null
         : UserModel.fromJson(userPreviewApiResponse.first);
     return _currentUser;
+  }
+
+  Future<UserModel?> getUserById(String userId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+
+    final userJson = _userStore.firstWhere(
+      (user) => user['id'] == userId,
+      orElse: () => const <String, dynamic>{},
+    );
+    if (userJson.isEmpty) {
+      return null;
+    }
+
+    return UserModel.fromJson(userJson);
   }
 
   Future<UserModel?> signInMock() async {
@@ -71,8 +87,14 @@ class AuthService {
     final user = UserModel(
       id: 'u_${DateTime.now().millisecondsSinceEpoch}',
       name: name.trim(),
+      bio: '',
       rating: 0,
+      tasksDone: 0,
       location: location.trim(),
+      phoneNumber: '',
+      email: normalizedEmail,
+      skills: const [],
+      profileImageUrl: '',
     );
 
     _credentialStore[normalizedEmail] = password;
@@ -90,5 +112,46 @@ class AuthService {
   Future<void> signOutMock() async {
     await Future<void>.delayed(const Duration(milliseconds: 180));
     _currentUser = null;
+  }
+
+  Future<UserModel?> updateCurrentUserProfile({
+    required String name,
+    required String bio,
+    required String location,
+    required String phoneNumber,
+    required String email,
+    required List<String> skills,
+    required String profileImageUrl,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 280));
+
+    final current = _currentUser;
+    if (current == null) {
+      return null;
+    }
+
+    final updated = current.copyWith(
+      name: name.trim(),
+      bio: bio.trim(),
+      location: location.trim(),
+      phoneNumber: phoneNumber.trim(),
+      email: email.trim(),
+      skills: skills,
+      profileImageUrl: profileImageUrl.trim(),
+    );
+
+    final userIndex = _userStore.indexWhere((user) => user['id'] == current.id);
+    if (userIndex >= 0) {
+      final updatedJson = {
+        ...updated.toJson(),
+        'email': updated.email,
+      };
+      final next = List<Map<String, dynamic>>.from(_userStore);
+      next[userIndex] = updatedJson;
+      _userStore = next;
+    }
+
+    _currentUser = updated;
+    return _currentUser;
   }
 }

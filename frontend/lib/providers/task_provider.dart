@@ -3,6 +3,14 @@ import 'package:frontend/core/state/view_state.dart';
 import 'package:frontend/models/task_model.dart';
 import 'package:frontend/services/task_service.dart';
 
+enum AcceptTaskOutcome {
+  accepted,
+  ownTask,
+  alreadyAccepted,
+  notFound,
+  failed,
+}
+
 class TaskProvider extends ChangeNotifier {
   TaskProvider({TaskService? taskService})
       : _taskService = taskService ?? TaskService(),
@@ -85,6 +93,37 @@ class TaskProvider extends ChangeNotifier {
       _isCreating = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<AcceptTaskOutcome> acceptTask({
+    required String taskId,
+    required String userId,
+  }) async {
+    try {
+      final result =
+          await _taskService.acceptTask(taskId: taskId, userId: userId);
+      final refreshed = await _taskService.fetchTasks();
+      _cachedTasks = refreshed;
+      _state = refreshed.isEmpty
+          ? ViewState<List<TaskModel>>.empty(
+              message: 'No tasks available right now.',
+            )
+          : ViewState<List<TaskModel>>.success(refreshed);
+      notifyListeners();
+
+      switch (result) {
+        case TaskAcceptResult.accepted:
+          return AcceptTaskOutcome.accepted;
+        case TaskAcceptResult.ownTask:
+          return AcceptTaskOutcome.ownTask;
+        case TaskAcceptResult.alreadyAccepted:
+          return AcceptTaskOutcome.alreadyAccepted;
+        case TaskAcceptResult.notFound:
+          return AcceptTaskOutcome.notFound;
+      }
+    } catch (_) {
+      return AcceptTaskOutcome.failed;
     }
   }
 }

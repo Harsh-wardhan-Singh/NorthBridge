@@ -10,7 +10,10 @@ import 'package:frontend/screens/auth/auth_screen.dart';
 import 'package:frontend/screens/chat/chat_list_screen.dart';
 import 'package:frontend/screens/chat/chat_thread_screen.dart';
 import 'package:frontend/screens/home/home_screen.dart';
+import 'package:frontend/screens/profile/profile_screen.dart';
+import 'package:frontend/screens/profile/public_profile_screen.dart';
 import 'package:frontend/screens/task/task_details_screen.dart';
+import 'package:frontend/screens/task/task_history_screen.dart';
 import 'package:frontend/screens/task/task_post_screen.dart';
 import 'package:frontend/screens/task/task_root_screen.dart';
 import 'package:frontend/voice/voice_input_screen.dart';
@@ -21,8 +24,11 @@ class AppRoutes {
   static const String auth = AuthScreen.routeName;
   static const String chat = ChatListScreen.routeName;
   static const String chatThread = ChatThreadScreen.routeName;
+  static const String profile = ProfileScreen.routeName;
+  static const String publicProfile = PublicProfileScreen.routeName;
   static const String home = HomeScreen.routeName;
   static const String taskDetails = TaskDetailsScreen.routeName;
+  static const String taskHistory = TaskHistoryScreen.routeName;
   static const String taskPost = TaskPostScreen.routeName;
   static const String voiceInput = VoiceInputScreen.routeName;
   static const String voicePreview = VoicePreviewScreen.routeName;
@@ -34,10 +40,14 @@ class AppRoutes {
     required ChatProvider chatProvider,
   }) {
     return {
-      taskRoot: (_) => TaskRootScreen(taskProvider: taskProvider),
+      taskRoot: (_) => TaskRootScreen(
+            taskProvider: taskProvider,
+            authProvider: authProvider,
+          ),
       home: (_) => HomeScreen(taskProvider: taskProvider),
       auth: (_) => AuthScreen(authProvider: authProvider),
       chat: (_) => ChatListScreen(chatProvider: chatProvider),
+      profile: (_) => ProfileScreen(authProvider: authProvider),
     };
   }
 
@@ -53,6 +63,8 @@ class AppRoutes {
         return MaterialPageRoute<void>(
           builder: (_) => TaskDetailsScreen(
             taskProvider: taskProvider,
+            authProvider: authProvider,
+            chatProvider: chatProvider,
             taskId: args.taskId,
           ),
           settings: settings,
@@ -73,7 +85,20 @@ class AppRoutes {
 
     if (settings.name == taskPost) {
       return MaterialPageRoute<void>(
-        builder: (_) => TaskPostScreen(taskProvider: taskProvider),
+        builder: (_) => TaskPostScreen(
+          taskProvider: taskProvider,
+          authProvider: authProvider,
+        ),
+        settings: settings,
+      );
+    }
+
+    if (settings.name == taskHistory) {
+      return MaterialPageRoute<void>(
+        builder: (_) => TaskHistoryScreen(
+          taskProvider: taskProvider,
+          authProvider: authProvider,
+        ),
         settings: settings,
       );
     }
@@ -130,6 +155,30 @@ class AppRoutes {
       );
     }
 
+    if (settings.name == publicProfile) {
+      final args = settings.arguments;
+      if (args is PublicProfileArgs) {
+        return MaterialPageRoute<void>(
+          builder: (_) => PublicProfileScreen(
+            authProvider: authProvider,
+            userId: args.userId,
+          ),
+          settings: settings,
+        );
+      }
+
+      return MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          body: Center(
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: const Text('Invalid public profile route arguments.'),
+            ),
+          ),
+        ),
+      );
+    }
+
     return null;
   }
 
@@ -151,8 +200,16 @@ class AppRoutes {
     return Navigator.of(context).pushNamed<T>(taskPost);
   }
 
+  static Future<T?> goToTaskHistory<T extends Object?>(BuildContext context) {
+    return Navigator.of(context).pushNamed<T>(taskHistory);
+  }
+
   static Future<T?> goToAuth<T extends Object?>(BuildContext context) {
     return Navigator.of(context).pushNamed<T>(auth);
+  }
+
+  static Future<T?> goToProfile<T extends Object?>(BuildContext context) {
+    return Navigator.of(context).pushNamed<T>(profile);
   }
 
   static Future<T?> goToChat<T extends Object?>(BuildContext context) {
@@ -182,6 +239,16 @@ class AppRoutes {
       arguments: VoicePreviewArgs(draft: draft),
     );
   }
+
+  static Future<T?> goToPublicProfile<T extends Object?>(
+    BuildContext context, {
+    required String userId,
+  }) {
+    return Navigator.of(context).pushNamed<T>(
+      publicProfile,
+      arguments: PublicProfileArgs(userId: userId),
+    );
+  }
 }
 
 class TaskDetailsArgs {
@@ -200,4 +267,10 @@ class ChatThreadArgs {
   const ChatThreadArgs({required this.chat});
 
   final ChatModel chat;
+}
+
+class PublicProfileArgs {
+  const PublicProfileArgs({required this.userId});
+
+  final String userId;
 }

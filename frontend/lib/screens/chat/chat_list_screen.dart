@@ -6,6 +6,7 @@ import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
 import 'package:frontend/widgets/app_card.dart';
+import 'package:frontend/widgets/user_name_with_avatar.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({
@@ -131,10 +132,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             style: theme.textTheme.titleMedium,
                           ),
                           const SizedBox(height: AppSpacing.xxs),
-                          Text(
-                            'Posted by ${head.taskOwnerName}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          UserNameWithAvatar(
+                            userId: head.taskOwnerUserId,
+                            name: head.taskOwnerName,
+                            onTap: () => AppRoutes.goToPublicProfile(
+                              context,
+                              userId: head.taskOwnerUserId,
                             ),
                           ),
                           const SizedBox(height: AppSpacing.xs),

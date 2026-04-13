@@ -31,5 +31,18 @@ const List<Map<String, dynamic>> taskPreviewApiResponse = [
     'price': 12,
     'distanceKm': 0.9,
     'scheduledAt': '2026-04-12T15:15:00.000Z',
+    'acceptedByUserId': 'u_1001',
+    'acceptedAt': '2026-04-12T14:40:00.000Z',
+  },
+  {
+    'id': '4',
+    'postedByUserId': 'u_1002',
+    'postedByName': 'Meera Verma',
+    'title': 'Pick medicine from pharmacy',
+    'description': 'Need pickup from nearby pharmacy and drop at home.',
+    'location': 'Palam Vihar, Gurgaon',
+    'price': 20,
+    'distanceKm': 1.8,
+    'scheduledAt': '2026-04-14T14:00:00.000Z',
   },
 ];

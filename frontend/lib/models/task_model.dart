@@ -9,6 +9,8 @@ class TaskModel {
     required this.price,
     required this.distanceKm,
     required this.scheduledAt,
+    this.acceptedByUserId,
+    this.acceptedAt,
   });
 
   final String id;
@@ -20,6 +22,8 @@ class TaskModel {
   final double price;
   final double distanceKm;
   final DateTime scheduledAt;
+  final String? acceptedByUserId;
+  final DateTime? acceptedAt;
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
     return TaskModel(
@@ -32,6 +36,40 @@ class TaskModel {
       price: (json['price'] as num).toDouble(),
       distanceKm: (json['distanceKm'] as num).toDouble(),
       scheduledAt: DateTime.parse(json['scheduledAt'] as String),
+      acceptedByUserId: json['acceptedByUserId'] as String?,
+      acceptedAt: (json['acceptedAt'] as String?) == null
+          ? null
+          : DateTime.parse(json['acceptedAt'] as String),
+    );
+  }
+
+  TaskModel copyWith({
+    String? id,
+    String? postedByUserId,
+    String? postedByName,
+    String? title,
+    String? description,
+    String? location,
+    double? price,
+    double? distanceKm,
+    DateTime? scheduledAt,
+    String? acceptedByUserId,
+    DateTime? acceptedAt,
+    bool clearAcceptance = false,
+  }) {
+    return TaskModel(
+      id: id ?? this.id,
+      postedByUserId: postedByUserId ?? this.postedByUserId,
+      postedByName: postedByName ?? this.postedByName,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      location: location ?? this.location,
+      price: price ?? this.price,
+      distanceKm: distanceKm ?? this.distanceKm,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      acceptedByUserId:
+          clearAcceptance ? null : (acceptedByUserId ?? this.acceptedByUserId),
+      acceptedAt: clearAcceptance ? null : (acceptedAt ?? this.acceptedAt),
     );
   }
 
@@ -46,6 +84,8 @@ class TaskModel {
       'price': price,
       'distanceKm': distanceKm,
       'scheduledAt': scheduledAt.toIso8601String(),
+      'acceptedByUserId': acceptedByUserId,
+      'acceptedAt': acceptedAt?.toIso8601String(),
     };
   }
 }

@@ -1,13 +1,22 @@
 import 'package:frontend/models/task_model.dart';
 import 'package:frontend/services/test_data/task_test_data.dart';
 
+enum TaskAcceptResult {
+  accepted,
+  ownTask,
+  alreadyAccepted,
+  notFound,
+}
+
 class TaskService {
+  static List<Map<String, dynamic>> _taskStore = taskPreviewApiResponse
+      .map((task) => Map<String, dynamic>.from(task))
+      .toList();
+
   Future<List<TaskModel>> fetchTasks() async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
-    return taskPreviewApiResponse
-        .map(TaskModel.fromJson)
-        .toList(growable: false);
+    return _taskStore.map(TaskModel.fromJson).toList(growable: false);
   }
 
   Future<TaskModel> createTask({
@@ -21,7 +30,7 @@ class TaskService {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
-    return TaskModel(
+    final created = TaskModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       postedByUserId: postedByUserId,
       postedByName: postedByName,
@@ -32,6 +41,45 @@ class TaskService {
       distanceKm: 0,
       scheduledAt: scheduledAt,
     );
+
+    _taskStore = [
+      created.toJson(),
+      ..._taskStore,
+    ];
+
+    return created;
+  }
+
+  Future<TaskAcceptResult> acceptTask({
+    required String taskId,
+    required String userId,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+
+    final taskIndex = _taskStore.indexWhere((task) => task['id'] == taskId);
+    if (taskIndex < 0) {
+      return TaskAcceptResult.notFound;
+    }
+
+    final current = TaskModel.fromJson(_taskStore[taskIndex]);
+    if (current.postedByUserId == userId) {
+      return TaskAcceptResult.ownTask;
+    }
+
+    if (current.acceptedByUserId != null &&
+        current.acceptedByUserId != userId) {
+      return TaskAcceptResult.alreadyAccepted;
+    }
+
+    final updated = current.copyWith(
+      acceptedByUserId: userId,
+      acceptedAt: DateTime.now().toUtc(),
+    );
+
+    final next = List<Map<String, dynamic>>.from(_taskStore);
+    next[taskIndex] = updated.toJson();
+    _taskStore = next;
+    return TaskAcceptResult.accepted;
   }
 
   Future<Map<String, dynamic>> processVoiceInput(String text) async {

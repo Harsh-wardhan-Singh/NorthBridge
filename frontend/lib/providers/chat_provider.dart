@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:frontend/core/state/view_state.dart';
 import 'package:frontend/models/chat_model.dart';
 import 'package:frontend/models/message_model.dart';
+import 'package:frontend/models/task_model.dart';
 import 'package:frontend/services/chat_service.dart';
 
 class ChatProvider extends ChangeNotifier {
@@ -108,6 +109,32 @@ class ChatProvider extends ChangeNotifier {
     } finally {
       _isSendingMessage = false;
       notifyListeners();
+    }
+  }
+
+  Future<ChatModel?> openOrCreateTaskChat({
+    required TaskModel task,
+    required String helperUserId,
+  }) async {
+    try {
+      final chat = await _chatService.getOrCreateTaskChat(
+        task: task,
+        helperUserId: helperUserId,
+      );
+
+      final currentChats = List<ChatModel>.from(_state.data ?? const []);
+      final existingIndex =
+          currentChats.indexWhere((item) => item.chatId == chat.chatId);
+      if (existingIndex >= 0) {
+        currentChats[existingIndex] = chat;
+      } else {
+        currentChats.insert(0, chat);
+      }
+      _state = ViewState<List<ChatModel>>.success(currentChats);
+      notifyListeners();
+      return chat;
+    } catch (_) {
+      return null;
     }
   }
 }

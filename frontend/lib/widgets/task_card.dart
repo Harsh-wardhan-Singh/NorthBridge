@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
 import 'package:frontend/models/task_model.dart';
+import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_card.dart';
+import 'package:frontend/widgets/user_name_with_avatar.dart';
 
 class TaskCard extends StatelessWidget {
   const TaskCard({
@@ -25,15 +27,40 @@ class TaskCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              task.title,
-              style: theme.textTheme.titleMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    task.title,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                if (task.acceptedByUserId != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xs,
+                      vertical: AppSpacing.xxs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Accepted',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: AppSpacing.xxs),
-            Text(
-              'Posted by ${task.postedByName}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            UserNameWithAvatar(
+              userId: task.postedByUserId,
+              name: task.postedByName,
+              onTap: () => AppRoutes.goToPublicProfile(
+                context,
+                userId: task.postedByUserId,
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
@@ -54,7 +81,7 @@ class TaskCard extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.xs),
                 Text(
-                  '\$${task.price.toStringAsFixed(0)}',
+                  '₹${task.price.toStringAsFixed(0)}',
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,

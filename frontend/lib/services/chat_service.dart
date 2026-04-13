@@ -1,5 +1,6 @@
 import 'package:frontend/models/chat_model.dart';
 import 'package:frontend/models/message_model.dart';
+import 'package:frontend/models/task_model.dart';
 import 'package:frontend/services/test_data/chat_test_data.dart';
 import 'package:frontend/services/test_data/message_test_data.dart';
 
@@ -57,5 +58,58 @@ class ChatService {
     }
 
     return message;
+  }
+
+  Future<ChatModel> getOrCreateTaskChat({
+    required TaskModel task,
+    required String helperUserId,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+
+    final existing = _chatStore.firstWhere(
+      (chat) {
+        final users = (chat['users'] as List<dynamic>).cast<String>();
+        return chat['taskId'] == task.id &&
+            users.contains(task.postedByUserId) &&
+            users.contains(helperUserId);
+      },
+      orElse: () => const <String, dynamic>{},
+    );
+
+    if (existing.isNotEmpty) {
+      return ChatModel.fromJson(existing);
+    }
+
+    final now = DateTime.now().toUtc();
+    final chatId = 'c_${now.microsecondsSinceEpoch}';
+    final firstMessage = MessageModel(
+      id: 'm_${now.microsecondsSinceEpoch}',
+      chatId: chatId,
+      taskId: task.id,
+      senderId: task.postedByUserId,
+      text: 'Task accepted. Let\'s coordinate the details.',
+      timestamp: now,
+    );
+
+    final newChat = ChatModel(
+      chatId: chatId,
+      taskId: task.id,
+      taskTitle: task.title,
+      taskOwnerUserId: task.postedByUserId,
+      taskOwnerName: task.postedByName,
+      users: [task.postedByUserId, helperUserId],
+      lastMessage: firstMessage,
+    );
+
+    _messageStore = [
+      ..._messageStore,
+      firstMessage.toJson(),
+    ];
+    _chatStore = [
+      newChat.toJson(),
+      ..._chatStore,
+    ];
+
+    return newChat;
   }
 }

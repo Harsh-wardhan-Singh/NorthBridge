@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/providers/auth_provider.dart';
+import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
 import 'package:frontend/widgets/app_card.dart';
 import 'package:frontend/widgets/app_text_field.dart';
@@ -83,6 +84,13 @@ class _AuthScreenState extends State<AuthScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+
+    if (success) {
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.taskRoot,
+        (route) => false,
+      );
+    }
   }
 
   @override
@@ -205,6 +213,16 @@ class _AuthScreenState extends State<AuthScreen> {
                               ? null
                               : widget.authProvider.signOutMock,
                           child: const Text('Sign out'),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        OutlinedButton(
+                          onPressed: () {
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              AppRoutes.taskRoot,
+                              (route) => false,
+                            );
+                          },
+                          child: const Text('Continue as guest'),
                         ),
                         if (state.isError) ...[
                           const SizedBox(height: AppSpacing.xs),
