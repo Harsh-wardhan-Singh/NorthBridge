@@ -372,3 +372,109 @@ What remains hardcoded in UI by design:
 - [ ] Implement user-report endpoint and moderation workflow.
 - [ ] Replace test-data imports in services with API calls.
 - [ ] Keep provider and model APIs stable to avoid UI regressions.
+
+---
+
+## 10) Required lifecycle flows (storage + display)
+
+This section defines exactly how profile data, chat history, and task acceptance changes should be stored and reflected in UI.
+
+## 10.1 Profile storage and display flow
+
+### Store (write path)
+- Screen: `frontend/lib/screens/profile/profile_screen.dart`
+- Provider: `frontend/lib/providers/auth_provider.dart` (`updateProfile`)
+- Service: `frontend/lib/services/auth_service.dart` (`updateCurrentUserProfile`)
+- Endpoint target: `PATCH /me/profile`
+
+Payload backend should accept:
+
+```json
+{
+  "name": "string",
+  "bio": "string",
+  "location": "string",
+  "phoneNumber": "string",
+  "email": "string",
+  "skills": ["string"],
+  "profileImageUrl": "string",
+  "privatePaymentQrDataUrl": "string"
+}
+```
+
+### Read (display path)
+- Current user profile: `GET /me` used by `loadCurrentUser()`.
+- Public profile view: `GET /users/:id` used by `loadUserById(userId)`.
+
+### Privacy rules
+- `privatePaymentQrDataUrl` must be returned only for `GET /me` and never for `GET /users/:id`.
+- Public profile still returns `rating`, `tasksDone`, `skills`, `profileImageUrl`, `bio`, etc.
+
+## 10.2 Chat history storage and retrieval flow
+
+### Store (write path)
+- Screen: `frontend/lib/screens/chat/chat_thread_screen.dart`
+- Provider: `frontend/lib/providers/chat_provider.dart` (`sendMessage`)
+- Service: `frontend/lib/services/chat_service.dart` (`sendMessage`)
+- Endpoint target: `POST /chats/:id/messages`
+
+Message payload expected by backend:
+
+```json
+{
+  "chatId": "string",
+  "taskId": "string",
+  "senderId": "string",
+  "text": "string",
+  "imageDataUrl": "string|null",
+  "isPaymentRequest": false
+}
+```
+
+### Read (display path)
+- Chat list/history: `GET /chats`
+- Chat thread history: `GET /chats/:id/messages`
+
+### Persisted behavior required
+- Every new message must update `lastMessage` for its parent chat.
+- Message ordering must be chronological by `timestamp`.
+- Chat list should show latest activity ordering.
+
+## 10.3 Task acceptance recording flow (critical)
+
+### Acceptance write
+- Screen action: `frontend/lib/screens/task/task_details_screen.dart` (`Accept task`)
+- Provider: `frontend/lib/providers/task_provider.dart` (`acceptTask`)
+- Service: `frontend/lib/services/task_service.dart` (`acceptTask`)
+- Endpoint target: `POST /tasks/:id/accept`
+
+Backend must perform atomically:
+1. Validate task exists.
+2. Reject if accepter is task owner.
+3. Reject if already accepted by another user.
+4. Set:
+   - `acceptedByUserId = <accepterId>`
+   - `acceptedAt = <server timestamp>`
+
+Suggested success response:
+
+```json
+{
+  "result": "accepted",
+  "task": {
+    "id": "string",
+    "acceptedByUserId": "string",
+    "acceptedAt": "ISO-8601 datetime"
+  }
+}
+```
+
+### Acceptance read impacts (must reflect in UI)
+- Task list/details: accepted state badge/button behavior.
+- Task history: accepted user’s ongoing/past sections.
+- Chat availability: accepted task should allow helper-owner conversation.
+
+### Optional but recommended side effects
+- Auto-open/create chat between owner and accepter.
+- Emit realtime `task.updated` event so all clients refresh immediately.
+
