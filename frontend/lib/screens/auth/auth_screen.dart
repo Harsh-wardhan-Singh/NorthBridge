@@ -112,137 +112,132 @@ class _AuthScreenState extends State<AuthScreen> {
                 final state = widget.authProvider.state;
                 final user = state.data;
 
-                return AppCard(
-                  child: Padding(
-                    padding: AppSpacing.cardPadding,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.max,
-                      children: [
-                        Text(
-                          'Authentication',
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          user == null
-                              ? (_isLogin
-                                  ? 'Sign in to continue.'
-                                  : 'Create your account to continue.')
-                              : 'Signed in as ${user.name}',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: widget.authProvider.isMutating
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          _isLogin = true;
-                                        });
-                                      },
-                                icon: Icon(
-                                  Icons.login,
-                                  size: 18,
-                                  color: _isLogin
-                                      ? theme.colorScheme.primary
-                                      : theme.colorScheme.onSurface,
+                return SingleChildScrollView(
+                  child: AppCard(
+                    child: Padding(
+                      padding: AppSpacing.cardPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome',
+                            style: theme.textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            user == null
+                                ? (_isLogin
+                                    ? 'Sign in to continue.'
+                                    : 'Create your account to continue.')
+                                : 'Signed in as ${user.name}',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: widget.authProvider.isMutating
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _isLogin = true;
+                                          });
+                                        },
+                                  icon: Icon(
+                                    Icons.login,
+                                    size: 18,
+                                    color: _isLogin
+                                        ? theme.colorScheme.primary
+                                        : theme.colorScheme.onSurface,
+                                  ),
+                                  label: const Text('Login'),
                                 ),
-                                label: const Text('Login'),
                               ),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: widget.authProvider.isMutating
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          _isLogin = false;
-                                        });
-                                      },
-                                icon: Icon(
-                                  Icons.person_add_alt_1,
-                                  size: 18,
-                                  color: !_isLogin
-                                      ? theme.colorScheme.primary
-                                      : theme.colorScheme.onSurface,
+                              const SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: widget.authProvider.isMutating
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _isLogin = false;
+                                          });
+                                        },
+                                  icon: Icon(
+                                    Icons.person_add_alt_1,
+                                    size: 18,
+                                    color: !_isLogin
+                                        ? theme.colorScheme.primary
+                                        : theme.colorScheme.onSurface,
+                                  ),
+                                  label: const Text('Signup'),
                                 ),
-                                label: const Text('Signup'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          if (!_isLogin) ...[
+                            AppTextField(
+                              label: 'Full name',
+                              controller: _nameController,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            AppTextField(
+                              label: 'Location',
+                              controller: _locationController,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                          ],
+                          AppTextField(
+                            label: 'Email',
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          AppTextField(
+                            label: 'Password',
+                            controller: _passwordController,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          AppButton(
+                            label: widget.authProvider.isMutating
+                                ? 'Please wait...'
+                                : (_isLogin ? 'Login' : 'Create Account'),
+                            onPressed:
+                                widget.authProvider.isMutating ? null : _submit,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          AppButton(
+                            label: 'Continue as guest',
+                            variant: AppButtonVariant.secondary,
+                            onPressed: () {
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                AppRoutes.taskRoot,
+                                (route) => false,
+                              );
+                            },
+                          ),
+                          if (state.isError) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              state.message ?? 'Authentication error.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.error,
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        if (!_isLogin) ...[
-                          AppTextField(
-                            label: 'Full name',
-                            controller: _nameController,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          AppTextField(
-                            label: 'Location',
-                            controller: _locationController,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                        ],
-                        AppTextField(
-                          label: 'Email',
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppTextField(
-                          label: 'Password',
-                          controller: _passwordController,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppButton(
-                          label: widget.authProvider.isMutating
-                              ? 'Please wait...'
-                              : (_isLogin ? 'Login' : 'Create Account'),
-                          onPressed:
-                              widget.authProvider.isMutating ? null : _submit,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        OutlinedButton(
-                          onPressed: widget.authProvider.isMutating
-                              ? null
-                              : widget.authProvider.signOutMock,
-                          child: const Text('Sign out'),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        OutlinedButton(
-                          onPressed: () {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              AppRoutes.taskRoot,
-                              (route) => false,
-                            );
-                          },
-                          child: const Text('Continue as guest'),
-                        ),
-                        if (state.isError) ...[
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            state.message ?? 'Authentication error.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.error,
+                          if (user != null) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(
+                              '${user.location} • Rating ${user.rating.toStringAsFixed(1)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
-                        if (user != null) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(
-                            '${user.location} • Rating ${user.rating.toStringAsFixed(1)}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 );

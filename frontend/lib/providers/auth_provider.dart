@@ -137,6 +137,7 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required List<String> skills,
     required String profileImageUrl,
+    required String privatePaymentQrDataUrl,
   }) async {
     _isMutating = true;
     notifyListeners();
@@ -150,6 +151,7 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         skills: skills,
         profileImageUrl: profileImageUrl,
+        privatePaymentQrDataUrl: privatePaymentQrDataUrl,
       );
 
       if (updated == null) {

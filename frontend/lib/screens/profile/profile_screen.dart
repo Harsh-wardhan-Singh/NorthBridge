@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
+import 'package:frontend/core/utils/device_image_picker.dart';
 import 'package:frontend/models/user_model.dart';
 import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
@@ -33,6 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _skillInputController = TextEditingController();
   final TextEditingController _profileImageController = TextEditingController();
+  final TextEditingController _paymentQrController = TextEditingController();
   List<String> _skills = const [];
 
   @override
@@ -50,6 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _emailController.dispose();
     _skillInputController.dispose();
     _profileImageController.dispose();
+    _paymentQrController.dispose();
     super.dispose();
   }
 
@@ -65,6 +68,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _emailController.text = user.email;
     _skills = List<String>.from(user.skills);
     _profileImageController.text = user.profileImageUrl;
+    _paymentQrController.text = user.privatePaymentQrDataUrl;
+  }
+
+  Future<void> _pickProfileImage() async {
+    final selected = await pickImageAsDataUrl();
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _profileImageController.text = selected;
+    });
+  }
+
+  Future<void> _pickPaymentQr() async {
+    final selected = await pickImageAsDataUrl();
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _paymentQrController.text = selected;
+    });
   }
 
   void _addSkill() {
@@ -108,6 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       email: _emailController.text,
       skills: _skills,
       profileImageUrl: _profileImageController.text,
+      privatePaymentQrDataUrl: _paymentQrController.text,
     );
 
     if (!mounted) {
@@ -230,11 +257,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                           const SizedBox(height: AppSpacing.md),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AppCard(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(
+                                      AppSpacing.sm,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Rating',
+                                          style: theme.textTheme.bodySmall,
+                                        ),
+                                        const SizedBox(
+                                          height: AppSpacing.xxs,
+                                        ),
+                                        Text(
+                                          user.rating.toStringAsFixed(1),
+                                          style: theme.textTheme.titleMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: AppCard(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(
+                                      AppSpacing.sm,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Tasks done',
+                                          style: theme.textTheme.bodySmall,
+                                        ),
+                                        const SizedBox(
+                                          height: AppSpacing.xxs,
+                                        ),
+                                        Text(
+                                          '${user.tasksDone}',
+                                          style: theme.textTheme.titleMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
                           AppTextField(
                             label: 'Profile picture URL',
                             controller: _profileImageController,
                             readOnly: !_isEditMode,
                           ),
+                          if (_isEditMode) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                onPressed: _pickProfileImage,
+                                icon: const Icon(Icons.upload_file_outlined),
+                                label: const Text('Upload from device'),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: AppSpacing.xs),
                           AppTextField(
                             label: 'Name',
@@ -277,10 +373,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           AppTextField(
+                            label: 'GPay UPI QR (private)',
+                            controller: _paymentQrController,
+                            readOnly: true,
+                            hintText: _paymentQrController.text.isEmpty
+                                ? 'No QR uploaded'
+                                : 'QR uploaded',
+                          ),
+                          if (_isEditMode) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                onPressed: _pickPaymentQr,
+                                icon: const Icon(Icons.qr_code_2_outlined),
+                                label: Text(
+                                  _paymentQrController.text.isEmpty
+                                      ? 'Upload UPI QR from device'
+                                      : 'Replace UPI QR',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'This QR is private and only used when you choose Ask for payment in chat.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: AppSpacing.xs),
+                          AppTextField(
                             label: 'Skills',
                             hintText: 'Add up to 10 skills',
                             controller: _skillInputController,
                             readOnly: !_isEditMode,
+                            onSubmitted:
+                                _isEditMode ? (_) => _addSkill() : null,
+                            suffixIcon: _isEditMode
+                                ? IconButton(
+                                    onPressed: _skills.length >= _maxSkills
+                                        ? null
+                                        : _addSkill,
+                                    icon: const Icon(Icons.add),
+                                  )
+                                : null,
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           if (_isEditMode)
@@ -308,23 +445,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ),
                                     ),
                                   ]
-                                : _skills
-                                    .map(
-                                      (skill) => Chip(
-                                        label: Text(skill),
-                                        onDeleted: _isEditMode
-                                            ? () {
-                                                setState(() {
-                                                  _skills = _skills
-                                                      .where((item) =>
-                                                          item != skill)
-                                                      .toList(growable: false);
-                                                });
-                                              }
-                                            : null,
-                                      ),
-                                    )
-                                    .toList(growable: false),
+                                : List<Widget>.generate(_skills.length,
+                                    (index) {
+                                    final skill = _skills[index];
+                                    return Chip(
+                                      label: Text(skill),
+                                      onDeleted: _isEditMode
+                                          ? () {
+                                              setState(() {
+                                                _skills = _skills
+                                                    .where((_) => true)
+                                                    .toList(growable: true)
+                                                  ..removeAt(index);
+                                              });
+                                            }
+                                          : null,
+                                    );
+                                  }),
                           ),
                           const SizedBox(height: AppSpacing.md),
                           if (_isEditMode)

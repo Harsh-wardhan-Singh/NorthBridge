@@ -73,6 +73,11 @@ class PublicProfileScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         Text(
+                          'About',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
                           user.bio.isEmpty ? 'No bio added.' : user.bio,
                           style: theme.textTheme.bodyMedium,
                         ),
@@ -99,14 +104,48 @@ class PublicProfileScreen extends StatelessWidget {
                                   .toList(growable: false),
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'Rating: ${user.rating.toStringAsFixed(1)}',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: AppSpacing.xxs),
-                        Text(
-                          'Tasks done: ${user.tasksDone}',
-                          style: theme.textTheme.bodyMedium,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AppCard(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Rating',
+                                          style: theme.textTheme.bodySmall),
+                                      const SizedBox(height: AppSpacing.xxs),
+                                      Text(
+                                        user.rating.toStringAsFixed(1),
+                                        style: theme.textTheme.titleMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: AppCard(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Tasks done',
+                                          style: theme.textTheme.bodySmall),
+                                      const SizedBox(height: AppSpacing.xxs),
+                                      Text(
+                                        '${user.tasksDone}',
+                                        style: theme.textTheme.titleMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

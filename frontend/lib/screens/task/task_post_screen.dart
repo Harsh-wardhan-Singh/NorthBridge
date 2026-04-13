@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
+import 'package:frontend/models/task_mode.dart';
 import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
+import 'package:frontend/widgets/app_card.dart';
 import 'package:frontend/widgets/app_text_field.dart';
 
 class TaskPostScreen extends StatefulWidget {
@@ -36,6 +38,7 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
   final _priceController = TextEditingController();
 
   late DateTime _selectedDateTime;
+  TaskExecutionMode _selectedExecutionMode = TaskExecutionMode.offline;
   String? _formError;
 
   @override
@@ -130,6 +133,7 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
       location: location,
       price: price,
       scheduledAt: _selectedDateTime,
+      executionMode: _selectedExecutionMode,
     );
 
     if (!mounted) {
@@ -144,6 +148,7 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
         _descriptionController.clear();
         _locationController.clear();
         _priceController.clear();
+        _selectedExecutionMode = TaskExecutionMode.offline;
         widget.onTaskCreated?.call();
       }
     } else {
@@ -172,6 +177,7 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
       _locationController.text = draft.location;
       _priceController.text = draft.price > 0 ? draft.price.toString() : '';
       _selectedDateTime = draft.scheduledAt;
+      _selectedExecutionMode = draft.executionMode;
     });
   }
 
@@ -187,7 +193,7 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
           children: [
             Text(
               'Create a task',
-              style: theme.textTheme.titleLarge,
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
@@ -197,55 +203,87 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            AppTextField(
-              label: 'Title',
-              hintText: 'What do you need help with?',
-              controller: _titleController,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            AppTextField(
-              label: 'Description',
-              hintText: 'Add relevant details',
-              controller: _descriptionController,
-              maxLines: 4,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            AppTextField(
-              label: 'Location',
-              hintText: 'Area or locality',
-              controller: _locationController,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            AppTextField(
-              label: 'Price',
-              hintText: 'e.g. 25',
-              controller: _priceController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _pickDate,
-                    child: Text(formatTaskDate(_selectedDateTime)),
-                  ),
+            AppCard(
+              child: Padding(
+                padding: AppSpacing.cardPadding,
+                child: Column(
+                  children: [
+                    AppTextField(
+                      label: 'Title',
+                      hintText: 'What do you need help with?',
+                      controller: _titleController,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      label: 'Description',
+                      hintText: 'Add relevant details',
+                      controller: _descriptionController,
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      label: 'Location',
+                      hintText: 'Area or locality',
+                      controller: _locationController,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      label: 'Price',
+                      hintText: 'e.g. 250',
+                      controller: _priceController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    DropdownButtonFormField<TaskExecutionMode>(
+                      value: _selectedExecutionMode,
+                      decoration: const InputDecoration(
+                        labelText: 'Mode',
+                      ),
+                      items: TaskExecutionMode.values
+                          .map(
+                            (mode) => DropdownMenuItem<TaskExecutionMode>(
+                              value: mode,
+                              child: Text(mode.displayLabel),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _selectedExecutionMode = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _pickDate,
+                            child: Text(formatTaskDate(_selectedDateTime)),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _pickTime,
+                            child: Text(formatTaskTime(_selectedDateTime)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: _openVoiceFlow,
+                      icon: const Icon(Icons.mic_none),
+                      label: const Text('Speak'),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _pickTime,
-                    child: Text(formatTaskTime(_selectedDateTime)),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed: _openVoiceFlow,
-              icon: const Icon(Icons.mic_none),
-              label: const Text('Speak'),
+              ),
             ),
             if (_formError != null) ...[
               const SizedBox(height: AppSpacing.sm),

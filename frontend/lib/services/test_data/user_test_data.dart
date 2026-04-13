@@ -10,6 +10,7 @@ const List<Map<String, dynamic>> userPreviewApiResponse = [
     'email': 'aarav@northbridge.app',
     'skills': ['Groceries', 'Coordination', 'Home Support'],
     'profileImageUrl': '',
+    'privatePaymentQrDataUrl': '',
   },
   {
     'id': 'u_1002',
@@ -22,6 +23,7 @@ const List<Map<String, dynamic>> userPreviewApiResponse = [
     'email': 'meera@northbridge.app',
     'skills': ['Delivery', 'Errands', 'Assembly'],
     'profileImageUrl': '',
+    'privatePaymentQrDataUrl': '',
   },
   {
     'id': 'u_1003',
@@ -34,6 +36,7 @@ const List<Map<String, dynamic>> userPreviewApiResponse = [
     'email': 'rohan@northbridge.app',
     'skills': ['Furniture', 'Setup'],
     'profileImageUrl': '',
+    'privatePaymentQrDataUrl': '',
   },
   {
     'id': 'u_1004',
@@ -46,5 +49,6 @@ const List<Map<String, dynamic>> userPreviewApiResponse = [
     'email': 'nisha@northbridge.app',
     'skills': ['Pickup', 'Courier', 'Local Travel'],
     'profileImageUrl': '',
+    'privatePaymentQrDataUrl': '',
   },
 ];

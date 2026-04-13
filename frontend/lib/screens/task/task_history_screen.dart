@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
+import 'package:frontend/models/task_mode.dart';
 import 'package:frontend/models/task_model.dart';
 import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/providers/task_provider.dart';
@@ -82,38 +83,58 @@ class TaskHistoryScreen extends StatelessWidget {
               return ListView(
                 padding: AppSpacing.screenPadding,
                 children: [
-                  Text(
-                    'Ongoing tasks',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  if (ongoing.isEmpty)
-                    Text(
-                      'No ongoing accepted tasks.',
-                      style: theme.textTheme.bodyMedium,
-                    )
-                  else
-                    ...ongoing.map(_TaskHistoryCard.new),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text(
-                    'Past tasks',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Total earned: ₹${totalEarned.toStringAsFixed(0)}',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.primary,
+                  AppCard(
+                    child: Padding(
+                      padding: AppSpacing.cardPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ongoing tasks',
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          if (ongoing.isEmpty)
+                            Text(
+                              'No ongoing accepted tasks.',
+                              style: theme.textTheme.bodyMedium,
+                            )
+                          else
+                            ...ongoing.map(_TaskHistoryCard.new),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  if (past.isEmpty)
-                    Text(
-                      'No completed tasks yet.',
-                      style: theme.textTheme.bodyMedium,
-                    )
-                  else
-                    ...past.map(_TaskHistoryCard.new),
+                  const SizedBox(height: AppSpacing.lg),
+                  AppCard(
+                    child: Padding(
+                      padding: AppSpacing.cardPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Past tasks',
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'Total earned: ₹${totalEarned.toStringAsFixed(0)}',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          if (past.isEmpty)
+                            Text(
+                              'No completed tasks yet.',
+                              style: theme.textTheme.bodyMedium,
+                            )
+                          else
+                            ...past.map(_TaskHistoryCard.new),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               );
             },
@@ -141,7 +162,30 @@ class _TaskHistoryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(task.title, style: theme.textTheme.titleMedium),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(task.title, style: theme.textTheme.titleMedium),
+                  ),
+                  if (task.acceptedByUserId != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: AppSpacing.xxs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Accepted',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 'Posted by ${task.postedByName}',
@@ -155,6 +199,13 @@ class _TaskHistoryCard extends StatelessWidget {
               Text(
                 '${formatTaskDate(task.scheduledAt)} • ${formatTaskTime(task.scheduledAt)}',
                 style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                task.executionMode.displayLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.secondary,
+                ),
               ),
               const SizedBox(height: AppSpacing.xxs),
               Text(

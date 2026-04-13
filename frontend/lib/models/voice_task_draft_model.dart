@@ -1,3 +1,5 @@
+import 'package:frontend/models/task_mode.dart';
+
 class VoiceTaskDraftModel {
   const VoiceTaskDraftModel({
     required this.title,
@@ -5,6 +7,7 @@ class VoiceTaskDraftModel {
     required this.location,
     required this.price,
     required this.scheduledAt,
+    required this.executionMode,
   });
 
   final String title;
@@ -12,6 +15,7 @@ class VoiceTaskDraftModel {
   final String location;
   final double price;
   final DateTime scheduledAt;
+  final TaskExecutionMode executionMode;
 
   VoiceTaskDraftModel copyWith({
     String? title,
@@ -19,6 +23,7 @@ class VoiceTaskDraftModel {
     String? location,
     double? price,
     DateTime? scheduledAt,
+    TaskExecutionMode? executionMode,
   }) {
     return VoiceTaskDraftModel(
       title: title ?? this.title,
@@ -26,6 +31,7 @@ class VoiceTaskDraftModel {
       location: location ?? this.location,
       price: price ?? this.price,
       scheduledAt: scheduledAt ?? this.scheduledAt,
+      executionMode: executionMode ?? this.executionMode,
     );
   }
 
@@ -39,6 +45,8 @@ class VoiceTaskDraftModel {
         json['scheduledAt'] as String? ??
             DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
       ),
+      executionMode:
+          TaskExecutionMode.fromValue(json['executionMode'] as String?),
     );
   }
 
@@ -49,6 +57,7 @@ class VoiceTaskDraftModel {
       'location': location,
       'price': price,
       'scheduledAt': scheduledAt.toIso8601String(),
+      'executionMode': executionMode.storageValue,
     };
   }
 }

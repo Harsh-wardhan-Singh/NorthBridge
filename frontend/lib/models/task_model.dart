@@ -1,3 +1,5 @@
+import 'package:frontend/models/task_mode.dart';
+
 class TaskModel {
   const TaskModel({
     required this.id,
@@ -9,6 +11,7 @@ class TaskModel {
     required this.price,
     required this.distanceKm,
     required this.scheduledAt,
+    required this.executionMode,
     this.acceptedByUserId,
     this.acceptedAt,
   });
@@ -22,6 +25,7 @@ class TaskModel {
   final double price;
   final double distanceKm;
   final DateTime scheduledAt;
+  final TaskExecutionMode executionMode;
   final String? acceptedByUserId;
   final DateTime? acceptedAt;
 
@@ -36,6 +40,8 @@ class TaskModel {
       price: (json['price'] as num).toDouble(),
       distanceKm: (json['distanceKm'] as num).toDouble(),
       scheduledAt: DateTime.parse(json['scheduledAt'] as String),
+      executionMode:
+          TaskExecutionMode.fromValue(json['executionMode'] as String?),
       acceptedByUserId: json['acceptedByUserId'] as String?,
       acceptedAt: (json['acceptedAt'] as String?) == null
           ? null
@@ -53,6 +59,7 @@ class TaskModel {
     double? price,
     double? distanceKm,
     DateTime? scheduledAt,
+    TaskExecutionMode? executionMode,
     String? acceptedByUserId,
     DateTime? acceptedAt,
     bool clearAcceptance = false,
@@ -67,6 +74,7 @@ class TaskModel {
       price: price ?? this.price,
       distanceKm: distanceKm ?? this.distanceKm,
       scheduledAt: scheduledAt ?? this.scheduledAt,
+      executionMode: executionMode ?? this.executionMode,
       acceptedByUserId:
           clearAcceptance ? null : (acceptedByUserId ?? this.acceptedByUserId),
       acceptedAt: clearAcceptance ? null : (acceptedAt ?? this.acceptedAt),
@@ -84,6 +92,7 @@ class TaskModel {
       'price': price,
       'distanceKm': distanceKm,
       'scheduledAt': scheduledAt.toIso8601String(),
+      'executionMode': executionMode.storageValue,
       'acceptedByUserId': acceptedByUserId,
       'acceptedAt': acceptedAt?.toIso8601String(),
     };

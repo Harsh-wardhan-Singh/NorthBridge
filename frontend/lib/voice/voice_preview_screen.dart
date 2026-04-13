@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
+import 'package:frontend/models/task_mode.dart';
 import 'package:frontend/models/voice_task_draft_model.dart';
 import 'package:frontend/widgets/app_button.dart';
 import 'package:frontend/widgets/app_text_field.dart';
@@ -25,6 +26,7 @@ class _VoicePreviewScreenState extends State<VoicePreviewScreen> {
   late final TextEditingController _locationController;
   late final TextEditingController _priceController;
   late DateTime _scheduledAt;
+  late TaskExecutionMode _executionMode;
 
   @override
   void initState() {
@@ -41,6 +43,7 @@ class _VoicePreviewScreenState extends State<VoicePreviewScreen> {
           : widget.initialDraft.price.toString(),
     );
     _scheduledAt = widget.initialDraft.scheduledAt;
+    _executionMode = widget.initialDraft.executionMode;
   }
 
   @override
@@ -105,6 +108,7 @@ class _VoicePreviewScreenState extends State<VoicePreviewScreen> {
       location: _locationController.text.trim(),
       price: price,
       scheduledAt: _scheduledAt,
+      executionMode: _executionMode,
     );
 
     Navigator.of(context).pop(draft);
@@ -154,6 +158,29 @@ class _VoicePreviewScreenState extends State<VoicePreviewScreen> {
                 controller: _priceController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<TaskExecutionMode>(
+                value: _executionMode,
+                decoration: const InputDecoration(
+                  labelText: 'Mode',
+                ),
+                items: TaskExecutionMode.values
+                    .map(
+                      (mode) => DropdownMenuItem<TaskExecutionMode>(
+                        value: mode,
+                        child: Text(mode.displayLabel),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _executionMode = value;
+                  });
+                },
               ),
               const SizedBox(height: AppSpacing.sm),
               Row(

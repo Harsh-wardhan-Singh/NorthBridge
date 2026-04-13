@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
+import 'package:frontend/models/task_mode.dart';
 import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/providers/chat_provider.dart';
-import 'package:frontend/providers/task_provider.dart' show AcceptTaskOutcome;
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
@@ -29,9 +29,7 @@ class TaskDetailsScreen extends StatelessWidget {
   Future<void> _openTaskChat(BuildContext context, task) async {
     final user = authProvider.state.data;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please login first to open chat.')),
-      );
+      await AppRoutes.goToChat(context);
       return;
     }
 
@@ -83,134 +81,177 @@ class TaskDetailsScreen extends StatelessWidget {
                           style: theme.textTheme.bodyMedium,
                         ),
                       )
-                    : AppCard(
-                        child: Padding(
-                          padding: AppSpacing.cardPadding,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(task.title,
-                                  style: theme.textTheme.titleLarge),
-                              const SizedBox(height: AppSpacing.xxs),
-                              UserNameWithAvatar(
-                                userId: task.postedByUserId,
-                                name: task.postedByName,
-                                onTap: () => AppRoutes.goToPublicProfile(
-                                  context,
-                                  userId: task.postedByUserId,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              Text(task.location,
-                                  style: theme.textTheme.bodyMedium),
-                              const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                '₹${task.price.toStringAsFixed(0)} • ${task.distanceKm.toStringAsFixed(1)} km away',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: theme.colorScheme.secondary,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                '${formatTaskDate(task.scheduledAt)} • ${formatTaskTime(task.scheduledAt)}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                task.description,
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: AppSpacing.lg),
-                              if (userId == null)
-                                AppButton(
-                                  label: 'Accept task',
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Please login first to accept a task.',
+                    : SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: AppCard(
+                                child: Padding(
+                                  padding: AppSpacing.cardPadding,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        task.title,
+                                        style: theme.textTheme.titleLarge,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: AppSpacing.xxs),
+                                      Center(
+                                        child: UserNameWithAvatar(
+                                          userId: task.postedByUserId,
+                                          name: task.postedByName,
+                                          onTap: () =>
+                                              AppRoutes.goToPublicProfile(
+                                            context,
+                                            userId: task.postedByUserId,
+                                          ),
                                         ),
                                       ),
-                                    );
-                                  },
-                                )
-                              else if (task.postedByUserId == userId)
-                                AppButton(
-                                  label: 'Your task',
-                                  onPressed: null,
-                                )
-                              else if (task.acceptedByUserId == userId)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.tonalIcon(
-                                        onPressed: null,
-                                        icon: const Icon(Icons.check_circle),
-                                        label: const Text('Accepted'),
+                                      const SizedBox(height: AppSpacing.sm),
+                                      Text(
+                                        task.description,
+                                        style: theme.textTheme.bodyLarge,
+                                        textAlign: TextAlign.center,
                                       ),
-                                    ),
-                                    const SizedBox(width: AppSpacing.xs),
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: () => _openTaskChat(
-                                          context,
-                                          task,
-                                        ),
-                                        icon: const Icon(Icons.chat_bubble),
-                                        label: const Text('Chat'),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else if (task.acceptedByUserId != null)
-                                AppButton(
-                                  label: 'Accepted',
-                                  onPressed: null,
-                                )
-                              else
-                                AppButton(
-                                  label: 'Accept task',
-                                  onPressed: () async {
-                                    final outcome =
-                                        await taskProvider.acceptTask(
-                                      taskId: task.id,
-                                      userId: userId,
-                                    );
-
-                                    if (!context.mounted) {
-                                      return;
-                                    }
-
-                                    String message;
-                                    switch (outcome) {
-                                      case AcceptTaskOutcome.accepted:
-                                        message = 'Task accepted.';
-                                        break;
-                                      case AcceptTaskOutcome.ownTask:
-                                        message =
-                                            'You cannot accept your own task.';
-                                        break;
-                                      case AcceptTaskOutcome.alreadyAccepted:
-                                        message =
-                                            'This task is already accepted.';
-                                        break;
-                                      case AcceptTaskOutcome.notFound:
-                                        message = 'Task no longer available.';
-                                        break;
-                                      case AcceptTaskOutcome.failed:
-                                        message =
-                                            'Unable to accept task right now.';
-                                        break;
-                                    }
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(message)),
-                                    );
-                                  },
+                                    ],
+                                  ),
                                 ),
-                            ],
-                          ),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            SizedBox(
+                              width: double.infinity,
+                              child: AppCard(
+                                child: Padding(
+                                  padding: AppSpacing.cardPadding,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Task details',
+                                        style: theme.textTheme.titleLarge,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: AppSpacing.sm),
+                                      Text(
+                                        task.location,
+                                        style: theme.textTheme.bodyLarge,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      Text(
+                                        '${task.executionMode.displayLabel} • ₹${task.price.toStringAsFixed(0)} • ${task.distanceKm.toStringAsFixed(1)} km away',
+                                        style:
+                                            theme.textTheme.bodyLarge?.copyWith(
+                                          color: theme.colorScheme.secondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      Text(
+                                        '${formatTaskDate(task.scheduledAt)} • ${formatTaskTime(task.scheduledAt)}',
+                                        style: theme.textTheme.bodyMedium,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            if (userId == null)
+                              AppButton(
+                                label: 'Accept task',
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please login first to accept a task.',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                            else if (task.postedByUserId == userId)
+                              AppButton(
+                                label: 'Your task',
+                                onPressed: null,
+                              )
+                            else if (task.acceptedByUserId == userId)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton.tonalIcon(
+                                      onPressed: null,
+                                      icon: const Icon(Icons.check_circle),
+                                      label: const Text('Accepted'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.xs),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => _openTaskChat(
+                                        context,
+                                        task,
+                                      ),
+                                      icon: const Icon(Icons.chat_bubble),
+                                      label: const Text('Chat'),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else if (task.acceptedByUserId != null)
+                              AppButton(
+                                label: 'Accepted',
+                                onPressed: null,
+                              )
+                            else
+                              AppButton(
+                                label: 'Accept task',
+                                onPressed: () async {
+                                  final outcome = await taskProvider.acceptTask(
+                                    taskId: task.id,
+                                    userId: userId,
+                                  );
+
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+
+                                  String message;
+                                  switch (outcome) {
+                                    case AcceptTaskOutcome.accepted:
+                                      message = 'Task accepted.';
+                                      break;
+                                    case AcceptTaskOutcome.ownTask:
+                                      message =
+                                          'You cannot accept your own task.';
+                                      break;
+                                    case AcceptTaskOutcome.alreadyAccepted:
+                                      message =
+                                          'This task is already accepted.';
+                                      break;
+                                    case AcceptTaskOutcome.notFound:
+                                      message = 'Task no longer available.';
+                                      break;
+                                    case AcceptTaskOutcome.failed:
+                                      message =
+                                          'Unable to accept task right now.';
+                                      break;
+                                  }
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
+                                },
+                              ),
+                          ],
                         ),
                       ),
               );
