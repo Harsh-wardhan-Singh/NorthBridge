@@ -47,6 +47,9 @@ class _TaskRootScreenState extends State<TaskRootScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         title: Text(_selectedIndex == 0 ? 'Tasks' : 'Create task'),
         actions: [
           IconButton(

@@ -16,5 +16,11 @@ class VoiceCaptureResultModel {
   final String transcript;
   final double confidence;
 
-  bool get hasTranscript => transcript.trim().isNotEmpty;
+  bool get hasTranscript {
+    final value = transcript;
+    if (value is! String) {
+      return false;
+    }
+    return value.trim().isNotEmpty;
+  }
 }

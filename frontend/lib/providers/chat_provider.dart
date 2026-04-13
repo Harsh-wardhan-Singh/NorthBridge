@@ -69,6 +69,8 @@ class ChatProvider extends ChangeNotifier {
     required String taskId,
     required String senderId,
     required String text,
+    String? imageDataUrl,
+    bool isPaymentRequest = false,
   }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) {
@@ -84,6 +86,8 @@ class ChatProvider extends ChangeNotifier {
         taskId: taskId,
         senderId: senderId,
         text: trimmed,
+        imageDataUrl: imageDataUrl,
+        isPaymentRequest: isPaymentRequest,
       );
 
       final currentMessages =

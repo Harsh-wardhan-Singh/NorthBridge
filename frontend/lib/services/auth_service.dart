@@ -95,6 +95,7 @@ class AuthService {
       email: normalizedEmail,
       skills: const [],
       profileImageUrl: '',
+      privatePaymentQrDataUrl: '',
     );
 
     _credentialStore[normalizedEmail] = password;
@@ -122,6 +123,7 @@ class AuthService {
     required String email,
     required List<String> skills,
     required String profileImageUrl,
+    required String privatePaymentQrDataUrl,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 280));
 
@@ -138,6 +140,7 @@ class AuthService {
       email: email.trim(),
       skills: skills,
       profileImageUrl: profileImageUrl.trim(),
+      privatePaymentQrDataUrl: privatePaymentQrDataUrl.trim(),
     );
 
     final userIndex = _userStore.indexWhere((user) => user['id'] == current.id);

@@ -28,8 +28,9 @@ class VoiceProvider extends ChangeNotifier {
   String get liveTranscript => _liveTranscript;
   double get liveConfidence => _liveConfidence;
 
-  bool get hasUsableTranscript =>
-      (_state.data?.transcript.trim().isNotEmpty ?? false);
+  bool get hasUsableTranscript => ((_state.data?.transcript is String)
+      ? (_state.data!.transcript.trim().isNotEmpty)
+      : false);
 
   Future<void> startListening() async {
     if (_isListening) {

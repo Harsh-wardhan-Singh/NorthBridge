@@ -30,6 +30,8 @@ class ChatService {
     required String taskId,
     required String senderId,
     required String text,
+    String? imageDataUrl,
+    bool isPaymentRequest = false,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
@@ -40,6 +42,8 @@ class ChatService {
       senderId: senderId,
       text: text,
       timestamp: DateTime.now().toUtc(),
+      imageDataUrl: imageDataUrl,
+      isPaymentRequest: isPaymentRequest,
     );
 
     _messageStore = [

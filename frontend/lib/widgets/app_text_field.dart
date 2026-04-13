@@ -11,6 +11,8 @@ class AppTextField extends StatelessWidget {
     this.keyboardType,
     this.readOnly = false,
     this.onTap,
+    this.onSubmitted,
+    this.suffixIcon,
   });
 
   final String label;
@@ -21,6 +23,8 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool readOnly;
   final VoidCallback? onTap;
+  final ValueChanged<String>? onSubmitted;
+  final Widget? suffixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -31,9 +35,11 @@ class AppTextField extends StatelessWidget {
       keyboardType: keyboardType,
       readOnly: readOnly,
       onTap: onTap,
+      onSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
+        suffixIcon: suffixIcon,
         border: const OutlineInputBorder(),
       ),
     );

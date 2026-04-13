@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:frontend/core/state/view_state.dart';
+import 'package:frontend/models/task_mode.dart';
+import 'package:frontend/models/task_sort_option_model.dart';
 import 'package:frontend/models/task_model.dart';
 import 'package:frontend/services/task_service.dart';
 
@@ -22,12 +24,25 @@ class TaskProvider extends ChangeNotifier {
   List<TaskModel> _cachedTasks = const [];
   String? _transientError;
   bool _isCreating = false;
+  List<TaskSortOptionModel> _sortOptions = const [];
+  TaskSortType? _selectedSort;
 
   ViewState<List<TaskModel>> get state => _state;
   List<TaskModel> get tasks => _state.data ?? const [];
   bool get hasCachedData => _cachedTasks.isNotEmpty;
   String? get transientError => _transientError;
   bool get isCreating => _isCreating;
+  List<TaskSortOptionModel> get sortOptions => _sortOptions;
+  TaskSortType? get selectedSort => _selectedSort;
+  String? get selectedSortLabel {
+    final selected = _sortOptions
+        .where((option) => option.type == _selectedSort)
+        .toList(growable: false);
+    if (selected.isEmpty) {
+      return null;
+    }
+    return selected.first.label;
+  }
 
   Future<void> loadTasks() async {
     _transientError = null;
@@ -35,7 +50,11 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final fetchedTasks = await _taskService.fetchTasks();
+      if (_sortOptions.isEmpty) {
+        _sortOptions = await _taskService.fetchSortOptions();
+      }
+
+      final fetchedTasks = await _taskService.fetchTasks(sortBy: _selectedSort);
       _cachedTasks = fetchedTasks;
 
       if (fetchedTasks.isEmpty) {
@@ -62,12 +81,18 @@ class TaskProvider extends ChangeNotifier {
     await loadTasks();
   }
 
+  Future<void> applySort(TaskSortType sortType) async {
+    _selectedSort = sortType;
+    await loadTasks();
+  }
+
   Future<bool> createTask({
     required String title,
     required String description,
     required String location,
     required double price,
     required DateTime scheduledAt,
+    required TaskExecutionMode executionMode,
   }) async {
     _isCreating = true;
     notifyListeners();
@@ -79,12 +104,17 @@ class TaskProvider extends ChangeNotifier {
         location: location,
         price: price,
         scheduledAt: scheduledAt,
+        executionMode: executionMode,
       );
 
-      final current = List<TaskModel>.from(_cachedTasks);
-      current.insert(0, createdTask);
-      _cachedTasks = current;
-      _state = ViewState<List<TaskModel>>.success(_cachedTasks);
+      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
+      if (refreshed.isEmpty) {
+        _cachedTasks = [createdTask];
+        _state = ViewState<List<TaskModel>>.success(_cachedTasks);
+      } else {
+        _cachedTasks = refreshed;
+        _state = ViewState<List<TaskModel>>.success(_cachedTasks);
+      }
 
       _isCreating = false;
       notifyListeners();
@@ -103,7 +133,7 @@ class TaskProvider extends ChangeNotifier {
     try {
       final result =
           await _taskService.acceptTask(taskId: taskId, userId: userId);
-      final refreshed = await _taskService.fetchTasks();
+      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
       _cachedTasks = refreshed;
       _state = refreshed.isEmpty
           ? ViewState<List<TaskModel>>.empty(

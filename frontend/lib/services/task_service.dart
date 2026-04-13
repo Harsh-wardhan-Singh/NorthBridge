@@ -1,4 +1,7 @@
+import 'package:frontend/models/task_mode.dart';
+import 'package:frontend/models/task_sort_option_model.dart';
 import 'package:frontend/models/task_model.dart';
+import 'package:frontend/services/test_data/task_sort_options_test_data.dart';
 import 'package:frontend/services/test_data/task_test_data.dart';
 
 enum TaskAcceptResult {
@@ -13,10 +16,18 @@ class TaskService {
       .map((task) => Map<String, dynamic>.from(task))
       .toList();
 
-  Future<List<TaskModel>> fetchTasks() async {
+  Future<List<TaskSortOptionModel>> fetchSortOptions() async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    return taskSortOptionsApiResponse
+        .map(TaskSortOptionModel.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<List<TaskModel>> fetchTasks({TaskSortType? sortBy}) async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
-    return _taskStore.map(TaskModel.fromJson).toList(growable: false);
+    final tasks = _taskStore.map(TaskModel.fromJson).toList(growable: false);
+    return _sortTasks(tasks, sortBy);
   }
 
   Future<TaskModel> createTask({
@@ -25,6 +36,7 @@ class TaskService {
     required String location,
     required double price,
     required DateTime scheduledAt,
+    required TaskExecutionMode executionMode,
     String postedByUserId = 'u_1001',
     String postedByName = 'Aarav Sharma',
   }) async {
@@ -40,6 +52,7 @@ class TaskService {
       price: price,
       distanceKm: 0,
       scheduledAt: scheduledAt,
+      executionMode: executionMode,
     );
 
     _taskStore = [
@@ -91,6 +104,7 @@ class TaskService {
     final priceMatch = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(cleaned);
     final parsedPrice = double.tryParse(priceMatch?.group(1) ?? '');
 
+    final mode = _detectExecutionMode(cleaned);
     final locationMatch = RegExp(
       r'(?:in|at)\s+([A-Za-z0-9\s,]+)',
       caseSensitive: false,
@@ -103,11 +117,61 @@ class TaskService {
       'title': shortTitle.isEmpty ? 'Voice task' : shortTitle,
       'description':
           cleaned.isEmpty ? 'Task details from voice input.' : cleaned,
-      'location':
-          parsedLocation?.isNotEmpty == true ? parsedLocation : 'Add location',
+      'location': parsedLocation?.isNotEmpty == true
+          ? parsedLocation
+          : (mode == TaskExecutionMode.online ? 'Online' : 'Add location'),
       'price': parsedPrice ?? 0,
       'scheduledAt':
           DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'executionMode': mode.storageValue,
     };
+  }
+
+  TaskExecutionMode _detectExecutionMode(String text) {
+    final hasOnline = RegExp(
+      r'\bonline\b|ऑनलाइन',
+      caseSensitive: false,
+    ).hasMatch(text);
+    final hasOffline = RegExp(
+      r'\boffline\b|ऑफलाइन',
+      caseSensitive: false,
+    ).hasMatch(text);
+
+    if (hasOffline) {
+      return TaskExecutionMode.offline;
+    }
+    if (hasOnline) {
+      return TaskExecutionMode.online;
+    }
+    return TaskExecutionMode.offline;
+  }
+
+  List<TaskModel> _sortTasks(List<TaskModel> tasks, TaskSortType? sortBy) {
+    if (sortBy == null) {
+      return tasks;
+    }
+
+    final sorted = List<TaskModel>.from(tasks);
+    switch (sortBy) {
+      case TaskSortType.defaultOrder:
+        return sorted;
+      case TaskSortType.distance:
+        sorted.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+        return sorted;
+      case TaskSortType.closestDate:
+        sorted.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+        return sorted;
+      case TaskSortType.latestDate:
+        sorted.sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+        return sorted;
+      case TaskSortType.online:
+        return sorted
+            .where((task) => task.executionMode == TaskExecutionMode.online)
+            .toList(growable: false);
+      case TaskSortType.offline:
+        return sorted
+            .where((task) => task.executionMode == TaskExecutionMode.offline)
+            .toList(growable: false);
+    }
   }
 }

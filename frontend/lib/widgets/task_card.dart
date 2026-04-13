@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
 import 'package:frontend/core/utils/date_time_utils.dart';
+import 'package:frontend/models/task_mode.dart';
 import 'package:frontend/models/task_model.dart';
 import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_card.dart';
@@ -64,6 +65,13 @@ class TaskCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
+            Text(
+              task.description,
+              style: theme.textTheme.bodyMedium,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
                 Icon(
@@ -89,16 +97,9 @@ class TaskCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              task.description,
-              style: theme.textTheme.bodyMedium,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              '${task.distanceKm.toStringAsFixed(1)} km away',
+              '${task.executionMode.displayLabel} • ${task.distanceKm.toStringAsFixed(1)} km away',
               style: theme.textTheme.labelMedium?.copyWith(
                 color: theme.colorScheme.secondary,
               ),

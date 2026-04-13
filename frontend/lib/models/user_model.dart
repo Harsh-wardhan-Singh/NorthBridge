@@ -10,6 +10,7 @@ class UserModel {
     required this.email,
     required this.skills,
     required this.profileImageUrl,
+    required this.privatePaymentQrDataUrl,
   });
 
   final String id;
@@ -22,6 +23,7 @@ class UserModel {
   final String email;
   final List<String> skills;
   final String profileImageUrl;
+  final String privatePaymentQrDataUrl;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -37,6 +39,7 @@ class UserModel {
           .map((item) => item.toString())
           .toList(growable: false),
       profileImageUrl: json['profileImageUrl'] as String? ?? '',
+      privatePaymentQrDataUrl: json['privatePaymentQrDataUrl'] as String? ?? '',
     );
   }
 
@@ -51,6 +54,7 @@ class UserModel {
     String? email,
     List<String>? skills,
     String? profileImageUrl,
+    String? privatePaymentQrDataUrl,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -63,6 +67,8 @@ class UserModel {
       email: email ?? this.email,
       skills: skills ?? this.skills,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      privatePaymentQrDataUrl:
+          privatePaymentQrDataUrl ?? this.privatePaymentQrDataUrl,
     );
   }
 
@@ -78,6 +84,7 @@ class UserModel {
       'email': email,
       'skills': skills,
       'profileImageUrl': profileImageUrl,
+      'privatePaymentQrDataUrl': privatePaymentQrDataUrl,
     };
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/constants/app_spacing.dart';
+import 'package:frontend/models/task_sort_option_model.dart';
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
@@ -35,105 +36,153 @@ class HomeScreen extends StatelessWidget {
                 itemCount: 4,
                 separatorBuilder: (_, __) =>
                     const SizedBox(height: AppSpacing.sm),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Nearby requests',
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          'Clear, local tasks you can accept quickly.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return const TaskCardSkeleton();
-                },
+                itemBuilder: (context, index) => const TaskCardSkeleton(),
               );
             }
 
             if (taskProvider.state.isError && !taskProvider.hasCachedData) {
-              return Center(
-                child: Padding(
-                  padding: AppSpacing.screenPadding,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              return ListView(
+                padding: AppSpacing.screenPadding,
+                children: [
+                  Text(
+                    taskProvider.state.message ?? 'Something went wrong.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppButton(
+                    label: 'Retry',
+                    onPressed: taskProvider.retry,
+                    isFullWidth: false,
+                  ),
+                ],
+              );
+            }
+
+            if (taskProvider.state.isEmpty) {
+              return ListView(
+                padding: AppSpacing.screenPadding,
+                children: [
+                  if (taskProvider.sortOptions.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: PopupMenuButton<TaskSortType>(
+                        onSelected: (sortType) {
+                          taskProvider.applySort(sortType);
+                        },
+                        itemBuilder: (context) => taskProvider.sortOptions
+                            .map(
+                              (option) => PopupMenuItem<TaskSortType>(
+                                value: option.type,
+                                child: Text(option.label),
+                              ),
+                            )
+                            .toList(growable: false),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.xs,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.sort, size: 18),
+                              const SizedBox(width: AppSpacing.xxs),
+                              Text(taskProvider.selectedSortLabel ?? 'Sort'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (taskProvider.sortOptions.isNotEmpty)
+                    const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    taskProvider.state.message ??
+                        'No tasks available right now.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              );
+            }
+
+            final hasTransientError = taskProvider.transientError != null;
+            final hasSortControl = taskProvider.sortOptions.isNotEmpty;
+            final headerItemsCount =
+                (hasSortControl ? 1 : 0) + (hasTransientError ? 1 : 0);
+
+            return ListView.separated(
+              padding: AppSpacing.screenPadding,
+              itemCount: taskProvider.tasks.length + headerItemsCount,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, index) {
+                if (hasSortControl && index == 0) {
+                  return Align(
+                    alignment: Alignment.centerRight,
+                    child: PopupMenuButton<TaskSortType>(
+                      onSelected: (sortType) {
+                        taskProvider.applySort(sortType);
+                      },
+                      itemBuilder: (context) => taskProvider.sortOptions
+                          .map(
+                            (option) => PopupMenuItem<TaskSortType>(
+                              value: option.type,
+                              child: Text(option.label),
+                            ),
+                          )
+                          .toList(growable: false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.sort, size: 18),
+                            const SizedBox(width: AppSpacing.xxs),
+                            Text(taskProvider.selectedSortLabel ?? 'Sort'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                if (hasTransientError && index == (hasSortControl ? 1 : 0)) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        taskProvider.state.message ?? 'Something went wrong.',
-                        style: theme.textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
+                        '${taskProvider.transientError} Showing cached tasks.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: AppSpacing.xs),
                       AppButton(
                         label: 'Retry',
                         onPressed: taskProvider.retry,
                         isFullWidth: false,
                       ),
                     ],
-                  ),
-                ),
-              );
-            }
-
-            if (taskProvider.state.isEmpty) {
-              return Center(
-                child: Text(
-                  taskProvider.state.message ?? 'No tasks available right now.',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              );
-            }
-
-            return ListView.separated(
-              padding: AppSpacing.screenPadding,
-              itemCount: taskProvider.tasks.length + 1,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Nearby requests',
-                        style: theme.textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Clear, local tasks you can accept quickly.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (taskProvider.transientError != null) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          '${taskProvider.transientError} Showing cached tasks.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.error,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppButton(
-                          label: 'Retry',
-                          onPressed: taskProvider.retry,
-                          isFullWidth: false,
-                        ),
-                      ],
-                    ],
                   );
                 }
 
-                final task = taskProvider.tasks[index - 1];
+                final taskIndex = index - headerItemsCount;
+                final task = taskProvider.tasks[taskIndex];
                 return TaskCard(
                   task: task,
                   onTap: () => AppRoutes.goToTaskDetails(
@@ -155,15 +204,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tasks'),
-        actions: showCreateShortcut
-            ? [
-                IconButton(
-                  onPressed: () => AppRoutes.goToTaskPost(context),
-                  icon: const Icon(Icons.add),
-                  tooltip: 'Post task',
-                ),
-              ]
-            : null,
+        actions: null,
       ),
       body: content,
     );

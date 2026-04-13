@@ -46,7 +46,10 @@ class AppRoutes {
           ),
       home: (_) => HomeScreen(taskProvider: taskProvider),
       auth: (_) => AuthScreen(authProvider: authProvider),
-      chat: (_) => ChatListScreen(chatProvider: chatProvider),
+      chat: (_) => ChatListScreen(
+            chatProvider: chatProvider,
+            authProvider: authProvider,
+          ),
       profile: (_) => ProfileScreen(authProvider: authProvider),
     };
   }
@@ -137,6 +140,7 @@ class AppRoutes {
         return MaterialPageRoute<void>(
           builder: (_) => ChatThreadScreen(
             chatProvider: chatProvider,
+            authProvider: authProvider,
             chat: args.chat,
           ),
           settings: settings,
