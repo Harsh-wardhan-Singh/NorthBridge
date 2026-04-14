@@ -1,0 +1,39 @@
+const {toMessageRecord} = require('./message.model');
+
+function normalizeString(value) {
+	return typeof value === 'string' ? value.trim() : '';
+}
+
+function toChatRecord(chat) {
+	if (!chat || typeof chat !== 'object') {
+		return null;
+	}
+
+	return {
+		chatId: normalizeString(chat.chatId),
+		taskId: normalizeString(chat.taskId),
+		taskTitle: normalizeString(chat.taskTitle),
+		taskOwnerUserId: normalizeString(chat.taskOwnerUserId),
+		taskOwnerName: normalizeString(chat.taskOwnerName),
+		users: Array.isArray(chat.users) ? chat.users.filter((entry) => typeof entry === 'string') : [],
+		lastMessage: toMessageRecord(chat.lastMessage),
+	};
+}
+
+function isValidChatRecord(chat) {
+	return Boolean(
+		chat &&
+			typeof chat.chatId === 'string' &&
+			typeof chat.taskId === 'string' &&
+			typeof chat.taskTitle === 'string' &&
+			typeof chat.taskOwnerUserId === 'string' &&
+			typeof chat.taskOwnerName === 'string' &&
+			Array.isArray(chat.users),
+	);
+}
+
+module.exports = {
+	normalizeString,
+	toChatRecord,
+	isValidChatRecord,
+};
