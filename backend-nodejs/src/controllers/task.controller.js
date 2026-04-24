@@ -144,7 +144,7 @@ async function acceptTaskController(taskId, payload = {}, authUserId = '') {
 		};
 	}
 
-	// ✅ MUST BE BEFORE return
+	// MUST BE BEFORE return
 	websocketUtils.sendToUser(result.data.postedByUserId, {
 		type: "TASK_ACCEPTED",
 		data: {
@@ -346,6 +346,7 @@ async function getChatMessagesController(chatId, payload = {}) {
 
 async function sendMessageController(chatId, payload = {}, authUserId = '') {
 	const actor = resolveActorId(payload.senderId, authUserId);
+
 	if (actor.error) {
 		return {
 			status: actor.error.status,
@@ -374,16 +375,30 @@ async function sendMessageController(chatId, payload = {}, authUserId = '') {
 		};
 	}
 
-	// ✅ BEFORE return
-	websocketUtils.broadcast({
-		type: "NEW_MESSAGE",
-		data: result.data
-	});
+	const message = result.data;
+
+	// 🔥 TARGETED DELIVERY (NO BROADCAST)
+
+	// Send to receiver (if exists)
+	if (message.receiverId) {
+		websocketUtils.sendToUser(message.receiverId, {
+			type: "NEW_MESSAGE",
+			data: message
+		});
+	}
+
+	// Send back to sender (to sync UI)
+	if (message.senderId) {
+		websocketUtils.sendToUser(message.senderId, {
+			type: "NEW_MESSAGE",
+			data: message
+		});
+	}
 
 	return {
 		status: result.status,
 		body: {
-			message: result.data,
+			message: message,
 		},
 	};
 }

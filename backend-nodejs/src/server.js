@@ -1,7 +1,15 @@
 const http = require('http');
 const WebSocket = require('ws');
+const admin = require('firebase-admin');
 const { createAppHandler } = require('./app');
 const { envConfig } = require('./config/env');
+
+// 🔥 Initialize Firebase Admin
+if (!admin.apps.length) {
+	admin.initializeApp({
+		credential: admin.credential.applicationDefault(),
+	});
+}
 
 // WebSocket utilities (exported)
 let websocketUtils = {
@@ -30,55 +38,92 @@ function startServer(options = {}) {
 	});
 
 	// 🔌 =========================
-	// 🔌 WEBSOCKET SETUP
+	// 🔌 WEBSOCKET SETUP (SECURE + STABLE)
 	// 🔌 =========================
 	const wss = new WebSocket.Server({ server });
 
-	wss.on('connection', (ws, req) => {
-		const url = new URL(req.url, 'http://localhost');
-		const userId = url.searchParams.get('userId');
+	wss.on('connection', async (ws, req) => {
+		try {
+			const url = new URL(req.url, 'http://localhost');
+			const token = url.searchParams.get('token');
 
-		// Reject if no userId
-		if (!userId) {
-			console.log('❌ Missing userId, closing connection');
+			if (!token) {
+				console.log('❌ Missing token');
+				ws.close();
+				return;
+			}
+
+			// 🔥 VERIFY TOKEN
+			const decoded = await admin.auth().verifyIdToken(token);
+			const userId = decoded.uid;
+
+			ws.userId = userId;
+
+			// 🔥 HEARTBEAT INIT
+			ws.isAlive = true;
+			ws.on('pong', () => {
+				ws.isAlive = true;
+			});
+
+			console.log(`🔌 Connected: ${userId}`);
+
+			// Optional: confirm connection
+			ws.send(
+				JSON.stringify({
+					type: 'CONNECTED',
+					data: { userId },
+				})
+			);
+
+			ws.on('message', (message) => {
+				console.log(`📩 ${userId}:`, message.toString());
+			});
+
+			ws.on('close', () => {
+				console.log(`❌ Disconnected: ${userId}`);
+			});
+		} catch (err) {
+			console.log('❌ Invalid token:', err.message);
 			ws.close();
-			return;
 		}
-
-		ws.userId = userId;
-
-		console.log(`🔌 WebSocket connected: userId=${userId}`);
-
-		ws.on('message', (message) => {
-			console.log(`📩 Message from ${userId}:`, message.toString());
-		});
-
-		ws.on('close', () => {
-			console.log(`❌ Client disconnected: userId=${userId}`);
-		});
 	});
 
-	// Send to ALL clients
-	websocketUtils.broadcast = function (data) {
-		const message = JSON.stringify(data);
+	// 🔥 HEARTBEAT LOOP (kill dead clients)
+	const interval = setInterval(() => {
+		wss.clients.forEach((ws) => {
+			if (ws.isAlive === false) {
+				console.log(`💀 Terminating: ${ws.userId}`);
+				return ws.terminate();
+			}
 
+			ws.isAlive = false;
+			ws.ping();
+		});
+	}, 30000);
+
+	wss.on('close', () => {
+		clearInterval(interval);
+	});
+
+	// 🔥 Send to ALL
+	websocketUtils.broadcast = function (data) {
+		const msg = JSON.stringify(data);
 		wss.clients.forEach((client) => {
 			if (client.readyState === WebSocket.OPEN) {
-				client.send(message);
+				client.send(msg);
 			}
 		});
 	};
 
-	// Send to ONE specific user
+	// 🔥 Send to ONE
 	websocketUtils.sendToUser = function (userId, data) {
-		const message = JSON.stringify(data);
-
+		const msg = JSON.stringify(data);
 		wss.clients.forEach((client) => {
 			if (
 				client.readyState === WebSocket.OPEN &&
 				client.userId === userId
 			) {
-				client.send(message);
+				client.send(msg);
 			}
 		});
 	};
@@ -102,5 +147,5 @@ if (require.main === module) {
 
 module.exports = {
 	startServer,
-	websocketUtils, // EXPORT THIS
+	websocketUtils,
 };
