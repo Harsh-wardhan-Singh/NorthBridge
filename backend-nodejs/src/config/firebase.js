@@ -225,6 +225,7 @@ class QuerySnapshot {
 	constructor(documents) {
 		this.docs = documents.map((document) => new DocumentSnapshot(document));
 		this.empty = this.docs.length === 0;
+		this.size = this.docs.length;
 	}
 }
 
@@ -315,9 +316,30 @@ class FirestoreClient {
 	}
 
 	async listCollection(collectionName) {
-		const payload = await this._request('GET', `${this.databasePath}/${encodeURIComponent(collectionName)}`);
-		const documents = Array.isArray(payload?.documents) ? payload.documents : [];
-		return documents.map((document) => deserializeFirestoreDocument(document));
+		const documents = [];
+		let nextPageToken = null;
+
+		do {
+			const query = new URLSearchParams({
+				pageSize: '1000',
+			});
+			if (nextPageToken) {
+				query.set('pageToken', nextPageToken);
+			}
+
+			const payload = await this._request(
+				'GET',
+				`${this.databasePath}/${encodeURIComponent(collectionName)}?${query.toString()}`,
+			);
+			const pageDocuments = Array.isArray(payload?.documents) ? payload.documents : [];
+			documents.push(...pageDocuments.map((document) => deserializeFirestoreDocument(document)));
+			nextPageToken =
+				typeof payload?.nextPageToken === 'string' && payload.nextPageToken.trim()
+					? payload.nextPageToken.trim()
+					: null;
+		} while (nextPageToken);
+
+		return documents;
 	}
 
 	async getDocument(collectionName, documentId) {
@@ -467,6 +489,7 @@ function initializeFirebaseAdmin(env = getEnvConfig()) {
 			constructor(docs) {
 				this.docs = docs.map((d) => new InMemoryDocumentSnapshot(d.id, d.data));
 				this.empty = this.docs.length === 0;
+				this.size = this.docs.length;
 			}
 		}
 
