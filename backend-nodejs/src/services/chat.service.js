@@ -123,7 +123,10 @@ async function createMessageEntry(payload = {}) {
 	// Notify via websocket and notifications (non-blocking)
 	Promise.resolve(eventService.notifyNewMessage(updated, extendedMessage)).catch(() => {});
 
-	return success(201, extendedMessage);
+	return success(201, {
+		message: extendedMessage,
+		chat: updated,
+	});
 }
 
 async function openOrCreateTaskChatEntry(payload = {}) {

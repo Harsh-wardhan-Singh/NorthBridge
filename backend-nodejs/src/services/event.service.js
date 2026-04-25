@@ -69,18 +69,22 @@ async function notifyTaskCancelled(task) {
 
 async function notifyNewMessage(chat, message) {
     try {
+        const payload = {
+            ...message,
+            chat,
+        };
         // Determine receiver (the other participant)
         const users = Array.isArray(chat?.users) ? chat.users : [];
         const receiver = users.find((u) => u !== message.senderId) || undefined;
 
         if (receiver) {
-            websocketService.sendToUser(receiver, {type: 'NEW_MESSAGE', data: message});
-            safeFire(notificationService.notifyUser(receiver, {type: 'NEW_MESSAGE', data: message}));
+            websocketService.sendToUser(receiver, {type: 'NEW_MESSAGE', data: payload});
+            safeFire(notificationService.notifyUser(receiver, {type: 'NEW_MESSAGE', data: payload}));
         }
 
         // Always echo to sender to sync UI
         if (message.senderId) {
-            websocketService.sendToUser(message.senderId, {type: 'NEW_MESSAGE', data: message});
+            websocketService.sendToUser(message.senderId, {type: 'NEW_MESSAGE', data: payload});
         }
     } catch (e) {
         console.warn('notifyNewMessage error', e && e.message);

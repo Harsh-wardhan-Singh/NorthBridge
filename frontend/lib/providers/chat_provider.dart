@@ -17,9 +17,19 @@ class ChatProvider extends ChangeNotifier {
   ViewState<List<MessageModel>> _messagesState =
       ViewState<List<MessageModel>>.empty();
   ViewState<List<MessageModel>> get messagesState => _messagesState;
+  final Map<String, List<MessageModel>> _messagesByChatId = {};
   bool _isSendingMessage = false;
   String? _activeChatId;
   bool get isSendingMessage => _isSendingMessage;
+
+  void reset() {
+    _state = ViewState<List<ChatModel>>.empty(message: 'No chats yet.');
+    _messagesState = ViewState<List<MessageModel>>.empty();
+    _messagesByChatId.clear();
+    _activeChatId = null;
+    _isSendingMessage = false;
+    notifyListeners();
+  }
 
   void applyRealtimeEvent(dynamic event) {
     if (event is! Map) {
@@ -30,6 +40,11 @@ class ChatProvider extends ChangeNotifier {
     final data = event['data'];
     if (type != 'NEW_MESSAGE' || data is! Map) {
       return;
+    }
+
+    final rawChat = data['chat'];
+    if (rawChat is Map) {
+      _upsertChatModel(ChatModel.fromJson(Map<String, dynamic>.from(rawChat)));
     }
 
     final message = MessageModel.fromJson(Map<String, dynamic>.from(data));
@@ -57,24 +72,31 @@ class ChatProvider extends ChangeNotifier {
   }
 
   Future<void> loadMessages(String chatId) async {
+    final previousMessages = _messagesByChatId[chatId];
     _activeChatId = chatId;
     _messagesState = ViewState<List<MessageModel>>.loading(
-      previousData: _messagesState.data,
+      previousData: previousMessages,
     );
     notifyListeners();
 
     try {
-      final messages = await _chatService.fetchMessages(chatId);
-      if (messages.isEmpty) {
+      final fetchedMessages = await _chatService.fetchMessages(chatId);
+      final mergedMessages = _mergeMessageList(
+        previousMessages ?? const [],
+        fetchedMessages,
+      );
+      _messagesByChatId[chatId] = mergedMessages;
+      if (mergedMessages.isEmpty) {
         _messagesState = ViewState<List<MessageModel>>.empty(
           message: 'No messages yet.',
         );
       } else {
-        _messagesState = ViewState<List<MessageModel>>.success(messages);
+        _messagesState = ViewState<List<MessageModel>>.success(mergedMessages);
       }
     } catch (_) {
       _messagesState = ViewState<List<MessageModel>>.error(
         'Unable to load messages right now.',
+        previousData: previousMessages,
       );
     }
 
@@ -111,9 +133,14 @@ class ChatProvider extends ChangeNotifier {
         isPaymentRequest: isPaymentRequest,
       );
 
-      _messagesState = ViewState<List<MessageModel>>.success(
-        _mergeMessages(_messagesState.data ?? const [], created),
+      final nextMessages = _mergeMessages(
+        _messagesByChatId[chatId] ?? const [],
+        created,
       );
+      _messagesByChatId[chatId] = nextMessages;
+      if (_activeChatId == chatId) {
+        _messagesState = ViewState<List<MessageModel>>.success(nextMessages);
+      }
 
       final chats = List<ChatModel>.from(_state.data ?? const []);
       final chatIndex = chats.indexWhere((chat) => chat.chatId == chatId);
@@ -129,6 +156,8 @@ class ChatProvider extends ChangeNotifier {
           lastMessage: created,
         );
         _state = ViewState<List<ChatModel>>.success(chats);
+      } else {
+        await loadChats();
       }
     } finally {
       _isSendingMessage = false;
@@ -163,10 +192,14 @@ class ChatProvider extends ChangeNotifier {
   }
 
   void _upsertRealtimeMessage(MessageModel message) {
+    final nextMessages = _mergeMessages(
+      _messagesByChatId[message.chatId] ?? const [],
+      message,
+    );
+    _messagesByChatId[message.chatId] = nextMessages;
+
     if (_activeChatId == message.chatId) {
-      _messagesState = ViewState<List<MessageModel>>.success(
-        _mergeMessages(_messagesState.data ?? const [], message),
-      );
+      _messagesState = ViewState<List<MessageModel>>.success(nextMessages);
     }
 
     final chats = List<ChatModel>.from(_state.data ?? const []);
@@ -190,6 +223,18 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _upsertChatModel(ChatModel chat) {
+    final chats = List<ChatModel>.from(_state.data ?? const []);
+    final chatIndex = chats.indexWhere((item) => item.chatId == chat.chatId);
+    if (chatIndex < 0) {
+      chats.insert(0, chat);
+    } else {
+      chats[chatIndex] = chat;
+    }
+
+    _state = ViewState<List<ChatModel>>.success(chats);
+  }
+
   List<MessageModel> _mergeMessages(
     List<MessageModel> existing,
     MessageModel incoming,
@@ -203,6 +248,17 @@ class ChatProvider extends ChangeNotifier {
     }
 
     next.sort((left, right) => left.timestamp.compareTo(right.timestamp));
+    return next;
+  }
+
+  List<MessageModel> _mergeMessageList(
+    List<MessageModel> existing,
+    List<MessageModel> incoming,
+  ) {
+    var next = List<MessageModel>.from(existing);
+    for (final message in incoming) {
+      next = _mergeMessages(next, message);
+    }
     return next;
   }
 }

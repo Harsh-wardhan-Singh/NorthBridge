@@ -449,7 +449,8 @@ async function sendMessageController(chatId, payload = {}, authUserId = '') {
 		};
 	}
 
-	const message = result.data;
+	const message = result.data?.message;
+	const chat = result.data?.chat;
 
 	// 🔥 TARGETED DELIVERY (NO BROADCAST)
 
@@ -457,6 +458,7 @@ async function sendMessageController(chatId, payload = {}, authUserId = '') {
 		status: result.status,
 		body: {
 			message: message,
+			chat: chat,
 		},
 	};
 }

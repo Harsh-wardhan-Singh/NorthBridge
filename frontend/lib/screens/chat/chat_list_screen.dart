@@ -27,6 +27,43 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
   final Set<String> _expandedTaskIds = <String>{};
+  String? _lastLoadedUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _refreshChatsIfNeeded();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _refreshChatsIfNeeded();
+  }
+
+  void _refreshChatsIfNeeded() {
+    final userId = widget.authProvider.state.data?.id;
+    if (userId == null || userId.isEmpty) {
+      _lastLoadedUserId = null;
+      return;
+    }
+
+    final state = widget.chatProvider.state;
+    final needsReload = _lastLoadedUserId != userId ||
+        state.isError ||
+        (state.isEmpty && (state.data?.isEmpty ?? true));
+    if (!needsReload) {
+      return;
+    }
+
+    _lastLoadedUserId = userId;
+    widget.chatProvider.loadChats();
+  }
 
   void _toggleTask(String taskId) {
     setState(() {
@@ -64,7 +101,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: AnimatedBuilder(
-            animation: widget.chatProvider,
+            animation: Listenable.merge([
+              widget.chatProvider,
+              widget.authProvider,
+            ]),
             builder: (context, _) {
               final isGuest = widget.authProvider.state.data == null;
               if (isGuest) {

@@ -56,11 +56,13 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   @override
   void initState() {
     super.initState();
+    widget.chatProvider.loadChats();
     widget.chatProvider.loadMessages(widget.chat.chatId);
   }
 
   @override
   void dispose() {
+    widget.chatProvider.loadChats();
     _messageController.dispose();
     super.dispose();
   }
@@ -468,15 +470,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     ),
                   );
                 }
-
-                if (state.isEmpty || messages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      state.message ?? 'No messages yet.',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  );
-                }
+                final hasNoMessages = state.isEmpty || messages.isEmpty;
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,88 +604,107 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     ],
                     const SizedBox(height: AppSpacing.md),
                     Expanded(
-                      child: ListView.separated(
-                        itemCount: messages.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final message = messages[index];
-                          return Align(
-                            alignment: message.senderId == currentUserId
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 480),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                                vertical: AppSpacing.xs,
+                      child: hasNoMessages
+                          ? Center(
+                              child: Text(
+                                state.message ?? 'No messages yet. Start the conversation.',
+                                style: theme.textTheme.bodyMedium,
+                                textAlign: TextAlign.center,
                               ),
-                              decoration: BoxDecoration(
-                                color: message.senderId == currentUserId
-                                    ? theme.colorScheme.primaryContainer
-                                    : theme.colorScheme.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (message.isPaymentRequest)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: AppSpacing.xxs,
-                                      ),
-                                      child: Text(
-                                        'Payment request',
-                                        style: theme.textTheme.labelMedium,
-                                      ),
+                            )
+                          : ListView.separated(
+                              itemCount: messages.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: AppSpacing.sm),
+                              itemBuilder: (context, index) {
+                                final message = messages[index];
+                                return Align(
+                                  alignment: message.senderId == currentUserId
+                                      ? Alignment.centerRight
+                                      : Alignment.centerLeft,
+                                  child: Container(
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 480),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.sm,
+                                      vertical: AppSpacing.xs,
                                     ),
-                                  Text(
-                                    message.text,
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                  if (message.imageDataUrl?.trim().isNotEmpty ==
-                                      true) ...[
-                                    const SizedBox(height: AppSpacing.xs),
-                                    Builder(
-                                      builder: (context) {
-                                        final bytes = _decodeDataUrl(
-                                            message.imageDataUrl);
-                                        if (bytes == null) {
-                                          return Text(
-                                            'Unable to preview image',
-                                            style: theme.textTheme.bodySmall,
-                                          );
-                                        }
-                                        return ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          child: GestureDetector(
-                                            onTap: () =>
-                                                _showImagePreview(bytes),
-                                            child: Image.memory(
-                                              bytes,
-                                              width: 180,
-                                              height: 180,
-                                              fit: BoxFit.cover,
+                                    decoration: BoxDecoration(
+                                      color: message.senderId == currentUserId
+                                          ? theme.colorScheme.primaryContainer
+                                          : theme.colorScheme.surfaceContainerLow,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (message.isPaymentRequest)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: AppSpacing.xxs,
+                                            ),
+                                            child: Text(
+                                              'Payment request',
+                                              style:
+                                                  theme.textTheme.labelMedium,
                                             ),
                                           ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                  const SizedBox(height: AppSpacing.xxs),
-                                  Text(
-                                    formatChatTime(message.timestamp),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                        Text(
+                                          message.text,
+                                          style: theme.textTheme.bodyMedium,
+                                        ),
+                                        if (message.imageDataUrl
+                                                ?.trim()
+                                                .isNotEmpty ==
+                                            true) ...[
+                                          const SizedBox(
+                                            height: AppSpacing.xs,
+                                          ),
+                                          Builder(
+                                            builder: (context) {
+                                              final bytes = _decodeDataUrl(
+                                                message.imageDataUrl,
+                                              );
+                                              if (bytes == null) {
+                                                return Text(
+                                                  'Unable to preview image',
+                                                  style:
+                                                      theme.textTheme.bodySmall,
+                                                );
+                                              }
+                                              return ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: GestureDetector(
+                                                  onTap: () =>
+                                                      _showImagePreview(bytes),
+                                                  child: Image.memory(
+                                                    bytes,
+                                                    width: 180,
+                                                    height: 180,
+                                                    fit: BoxFit.cover,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                        const SizedBox(height: AppSpacing.xxs),
+                                        Text(
+                                          formatChatTime(message.timestamp),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: theme.colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppCard(

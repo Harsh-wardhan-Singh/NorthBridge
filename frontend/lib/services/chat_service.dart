@@ -43,11 +43,21 @@ class ChatService {
         _upsertChatCache(response['chat']);
       }
 
+      final existingMessages = _messageStore
+          .map(MessageModel.fromJson)
+          .where((message) => message.chatId == chatId)
+          .toList(growable: false);
+      final fetchedMessages =
+          rawMessages.map(MessageModel.fromJson).toList(growable: false);
+      final mergedMessages = _mergeMessageLists(existingMessages, fetchedMessages);
+
       _messageStore = _upsertMessagesForChat(
         chatId: chatId,
-        rawMessages: rawMessages,
+        rawMessages: mergedMessages
+            .map((message) => message.toJson())
+            .toList(growable: false),
       );
-      return rawMessages.map(MessageModel.fromJson).toList(growable: false);
+      return mergedMessages;
     } catch (_) {
       if (_messageStore.isEmpty) {
         rethrow;
@@ -80,6 +90,9 @@ class ChatService {
     );
 
     if (response['message'] is Map) {
+      if (response['chat'] is Map) {
+        _upsertChatCache(response['chat']);
+      }
       final message = MessageModel.fromJson(
         Map<String, dynamic>.from(response['message'] as Map),
       );
@@ -116,10 +129,7 @@ class ChatService {
         Map<String, dynamic>.from(response['chat'] as Map),
       );
       _upsertChatCache(chat.toJson());
-      _messageStore = [
-        ..._messageStore.where((item) => item['chatId'] != chat.chatId),
-        chat.lastMessage.toJson(),
-      ];
+      _upsertCachedMessage(chat.lastMessage);
       return chat;
     }
 
@@ -163,6 +173,43 @@ class ChatService {
     final next = List<Map<String, dynamic>>.from(_chatStore);
     next[index] = chatMap;
     _chatStore = next;
+  }
+
+  void _upsertCachedMessage(MessageModel message) {
+    if (message.id.trim().isEmpty) {
+      return;
+    }
+
+    final next = List<Map<String, dynamic>>.from(_messageStore);
+    final index = next.indexWhere((item) => item['id'] == message.id);
+    if (index < 0) {
+      next.add(message.toJson());
+    } else {
+      next[index] = message.toJson();
+    }
+
+    _messageStore = next;
+  }
+
+  List<MessageModel> _mergeMessageLists(
+    List<MessageModel> existing,
+    List<MessageModel> incoming,
+  ) {
+    final merged = <MessageModel>[
+      ...existing,
+    ];
+
+    for (final message in incoming) {
+      final index = merged.indexWhere((item) => item.id == message.id);
+      if (index < 0) {
+        merged.add(message);
+      } else {
+        merged[index] = message;
+      }
+    }
+
+    merged.sort((left, right) => left.timestamp.compareTo(right.timestamp));
+    return merged;
   }
 
   List<Map<String, dynamic>> _upsertMessagesForChat({

@@ -20,25 +20,44 @@ class NorthBridgeApp extends StatefulWidget {
   State<NorthBridgeApp> createState() => _NorthBridgeAppState();
 }
 
-class _NorthBridgeAppState extends State<NorthBridgeApp> {
+class _NorthBridgeAppState extends State<NorthBridgeApp>
+    with WidgetsBindingObserver {
   late final TaskProvider _taskProvider;
   late final AuthProvider _authProvider;
   late final ChatProvider _chatProvider;
   late final LocationService _locationService;
   StreamSubscription<dynamic>? _webSocketSubscription;
+  String? _lastChatUserId;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _taskProvider = TaskProvider();
     _taskProvider.loadTasks();
     _locationService = LocationService();
     _bootstrapAcceptorLocation();
+    _chatProvider = ChatProvider();
     _authProvider = AuthProvider();
+    _authProvider.addListener(_syncChatStateWithAuth);
     _authProvider.loadCurrentUser().whenComplete(() {
+      _syncChatStateWithAuth();
       _initWebSocket();
     });
-    _chatProvider = ChatProvider();
+  }
+
+  void _syncChatStateWithAuth() {
+    final currentUserId = _authProvider.state.data?.id;
+    if (_lastChatUserId == currentUserId) {
+      return;
+    }
+
+    _lastChatUserId = currentUserId;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      _chatProvider.reset();
+      return;
+    }
+
     _chatProvider.loadChats();
   }
 
@@ -57,6 +76,18 @@ class _NorthBridgeAppState extends State<NorthBridgeApp> {
     });
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+
+    _initWebSocket();
+    if ((_authProvider.state.data?.id ?? '').isNotEmpty) {
+      _chatProvider.loadChats();
+    }
+  }
+
   Future<void> _bootstrapAcceptorLocation() async {
     final location = await _locationService.tryGetCurrentLocation();
     if (!mounted || location == null) {
@@ -69,6 +100,8 @@ class _NorthBridgeAppState extends State<NorthBridgeApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _authProvider.removeListener(_syncChatStateWithAuth);
     _taskProvider.dispose();
     _authProvider.dispose();
     _chatProvider.dispose();
