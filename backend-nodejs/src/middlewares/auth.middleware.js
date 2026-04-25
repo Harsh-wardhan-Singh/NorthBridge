@@ -158,7 +158,7 @@ async function extractFirebaseAuthContext(input) {
 		const overrideUserId = headers['x-user-id'];
 		const allowOverride =
 			process.env.ALLOW_HTTP_AUTH_OVERRIDE === 'true' ||
-			(process.env.NODE_ENV !== 'production' && !initializeFirebaseAuth());
+			process.env.NODE_ENV !== 'production';
 
 		if (allowOverride && typeof overrideUserId === 'string' && overrideUserId.trim()) {
 			return {

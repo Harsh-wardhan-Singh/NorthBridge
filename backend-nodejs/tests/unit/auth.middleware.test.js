@@ -62,4 +62,32 @@ describe('auth.middleware contract', () => {
 			process.env.ALLOW_HTTP_AUTH_OVERRIDE = originalOverride;
 		}
 	});
+
+	test('extractFirebaseAuthContext trusts x-user-id without a bearer token in non-production', async () => {
+		const originalNodeEnv = process.env.NODE_ENV;
+		delete process.env.ALLOW_HTTP_AUTH_OVERRIDE;
+		process.env.NODE_ENV = 'development';
+		const auth = require('../../src/middlewares/auth.middleware');
+
+		const context = await auth.extractFirebaseAuthContext({
+			headers: {
+				'x-user-id': 'u_dev',
+				'x-user-email': 'dev@example.com',
+				'x-user-name': 'Dev User',
+			},
+		});
+
+		expect(context).toMatchObject({
+			userId: 'u_dev',
+			email: 'dev@example.com',
+			name: 'Dev User',
+			tokenProvided: false,
+		});
+
+		if (typeof originalNodeEnv === 'undefined') {
+			delete process.env.NODE_ENV;
+		} else {
+			process.env.NODE_ENV = originalNodeEnv;
+		}
+	});
 });

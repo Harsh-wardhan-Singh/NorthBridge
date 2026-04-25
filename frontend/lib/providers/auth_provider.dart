@@ -205,6 +205,7 @@ class AuthProvider extends ChangeNotifier {
     required String privatePaymentQrDataUrl,
   }) async {
     _isMutating = true;
+    final previousUser = _state.data;
     notifyListeners();
 
     try {
@@ -222,15 +223,24 @@ class AuthProvider extends ChangeNotifier {
       if (updated == null) {
         _state = ViewState<UserModel>.error(
           'No authenticated user to update profile.',
+          previousData: previousUser,
         );
         return false;
       }
 
       _state = ViewState<UserModel>.success(updated);
       return true;
+    } on ApiException catch (error) {
+      _state = ViewState<UserModel>.error(
+        error.message,
+        previousData: previousUser,
+      );
+      return false;
     } catch (_) {
-      _state =
-          ViewState<UserModel>.error('Unable to update profile right now.');
+      _state = ViewState<UserModel>.error(
+        'Unable to update profile right now.',
+        previousData: previousUser,
+      );
       return false;
     } finally {
       _isMutating = false;

@@ -229,6 +229,8 @@ class AuthService {
     required String profileImageUrl,
     required String privatePaymentQrDataUrl,
   }) async {
+    _restoreSessionHeaders();
+
     final response = await _apiService.patchJson(
       '/v1/auth/me/profile',
       body: {
