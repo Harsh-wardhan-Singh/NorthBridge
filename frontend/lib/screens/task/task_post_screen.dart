@@ -6,7 +6,6 @@ import 'package:frontend/models/task_model.dart';
 import 'package:frontend/providers/auth_provider.dart';
 import 'package:frontend/providers/task_provider.dart';
 import 'package:frontend/routes/app_routes.dart';
-import 'package:frontend/services/location_service.dart';
 import 'package:frontend/widgets/app_button.dart';
 import 'package:frontend/widgets/app_card.dart';
 import 'package:frontend/widgets/app_text_field.dart';
@@ -42,7 +41,6 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
   late DateTime _selectedDateTime;
   TaskExecutionMode _selectedExecutionMode = TaskExecutionMode.offline;
   String? _formError;
-  final LocationService _locationService = LocationService();
 
   @override
   void initState() {
@@ -138,27 +136,6 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
       return;
     }
 
-    TaskLocationGeo? locationGeo;
-    if (_selectedExecutionMode == TaskExecutionMode.offline) {
-      final existingLat = widget.taskProvider.acceptorLat;
-      final existingLng = widget.taskProvider.acceptorLng;
-      if (existingLat != null && existingLng != null) {
-        locationGeo = TaskLocationGeo(lat: existingLat, lng: existingLng);
-      } else {
-        final currentLocation = await _locationService.tryGetCurrentLocation();
-        if (currentLocation != null) {
-          locationGeo = TaskLocationGeo(
-            lat: currentLocation.lat,
-            lng: currentLocation.lng,
-          );
-          widget.taskProvider.setAcceptorLocation(
-            lat: currentLocation.lat,
-            lng: currentLocation.lng,
-          );
-        }
-      }
-    }
-
     final created = await widget.taskProvider.createTask(
       title: title,
       description: description,
@@ -168,7 +145,6 @@ class _TaskPostScreenState extends State<TaskPostScreen> {
       executionMode: _selectedExecutionMode,
       postedByUserId: currentUser.id,
       postedByName: currentUser.name,
-      locationGeo: locationGeo,
     );
 
     if (!mounted) {

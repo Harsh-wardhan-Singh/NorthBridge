@@ -181,6 +181,7 @@ function validateTaskListPayload(payload = {}) {
 		status: statusRaw || undefined,
 		postedByUserId: normalizeString(payload.postedByUserId) || undefined,
 		acceptedByUserId: normalizeString(payload.acceptedByUserId) || undefined,
+		viewerLocation: normalizeString(payload.viewerLocation) || undefined,
 		minPrice,
 		maxPrice,
 		page,

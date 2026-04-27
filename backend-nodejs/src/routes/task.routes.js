@@ -18,11 +18,14 @@ const taskRoutes = [
 	{
 		method: 'GET',
 		path: '/v1/tasks',
-		execute: (_params, body) =>
+		execute: (_params, body, userId) =>
 			listTasksWithFilterController({
+				userId,
 				sortBy: typeof body.sortBy === 'string' ? body.sortBy : undefined,
 				executionMode: typeof body.executionMode === 'string' ? body.executionMode : undefined,
 				status: typeof body.status === 'string' ? body.status : undefined,
+				viewerLocation:
+					typeof body.viewerLocation === 'string' ? body.viewerLocation : undefined,
 				minPrice:
 					typeof body.minPrice === 'number' || typeof body.minPrice === 'string'
 						? body.minPrice
@@ -59,13 +62,18 @@ const taskRoutes = [
 					typeof body.pageSize === 'number' || typeof body.pageSize === 'string'
 						? body.pageSize
 						: undefined,
+				viewerLocation:
+					typeof body.viewerLocation === 'string' ? body.viewerLocation : undefined,
 			}),
 	},
 	{
 		method: 'GET',
 		path: '/v1/tasks/:taskId',
-		execute: (params, body) =>
+		execute: (params, body, userId) =>
 			getTaskController(params.taskId, {
+				userId,
+				viewerLocation:
+					typeof body.viewerLocation === 'string' ? body.viewerLocation : undefined,
 				acceptorLat:
 					typeof body.acceptorLat === 'number' || typeof body.acceptorLat === 'string'
 						? body.acceptorLat

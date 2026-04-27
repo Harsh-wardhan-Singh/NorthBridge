@@ -4,12 +4,14 @@ const {taskRoutes} = require('./task.routes');
 const {chatRoutes} = require('./chat.routes');
 const {voiceRoutes} = require('./voice.routes');
 const {healthRoutes} = require('./health.routes');
+const {locationRoutes} = require('./location.routes');
 const {reportRoutes} = require('./report.routes');
 const {paymentRoutes} = require('./payment.routes');
 const {normalizeHeaders, getAuthContext} = require('../middlewares/auth.middleware');
 
 const routes = [
 	...healthRoutes,
+	...locationRoutes,
 	...authRoutes,
 	...userRoutes,
 	...taskRoutes,

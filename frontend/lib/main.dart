@@ -28,6 +28,7 @@ class _NorthBridgeAppState extends State<NorthBridgeApp>
   late final LocationService _locationService;
   StreamSubscription<dynamic>? _webSocketSubscription;
   String? _lastChatUserId;
+  String? _lastViewerLocation;
 
   @override
   void initState() {
@@ -47,6 +48,27 @@ class _NorthBridgeAppState extends State<NorthBridgeApp>
 
   void _syncChatStateWithAuth() {
     final currentUserId = _authProvider.state.data?.id;
+    final currentViewerLocation = _authProvider.state.data?.location?.trim();
+    final normalizedViewerLocation =
+        (currentViewerLocation == null || currentViewerLocation.isEmpty)
+            ? null
+            : currentViewerLocation;
+
+    _taskProvider.setViewerLocation(normalizedViewerLocation);
+
+    final shouldRefreshTaskDistances =
+        _lastChatUserId != currentUserId ||
+        _lastViewerLocation != normalizedViewerLocation;
+
+    _lastViewerLocation = normalizedViewerLocation;
+
+    if (shouldRefreshTaskDistances) {
+      _taskProvider.loadTasksIfStale(force: true);
+      if ((currentUserId ?? '').isNotEmpty) {
+        _taskProvider.loadMyTaskHistoryIfStale(force: true);
+      }
+    }
+
     if (_lastChatUserId == currentUserId) {
       return;
     }

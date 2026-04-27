@@ -134,6 +134,12 @@
 
       <section class="group">
         <h2>Task Location</h2>
+        <label for="taskLocationText">Task Address / Area</label>
+        <input id="taskLocationText" type="text" placeholder="e.g. Kamla Nagar, Delhi" />
+        <div class="row" style="margin-top: 8px;">
+          <button id="resolveTaskLocation" type="button">Resolve Task Address</button>
+          <button id="setTaskPoint" type="button">Set Marker From Inputs</button>
+        </div>
         <div class="row">
           <div>
             <label for="taskLat">Task Lat</label>
@@ -144,12 +150,17 @@
             <input id="taskLng" type="number" step="any" />
           </div>
         </div>
-        <button id="setTaskPoint" type="button">Set Marker From Inputs</button>
         <p class="muted" id="taskLabel">No location selected yet.</p>
       </section>
 
       <section class="group">
         <h2>Acceptor Location</h2>
+        <label for="acceptorLocationText">Viewer Address / Area</label>
+        <input id="acceptorLocationText" type="text" placeholder="e.g. Noida or Gurugram" />
+        <div class="row" style="margin-top: 8px;">
+          <button id="resolveAcceptorLocation" type="button">Resolve Viewer Address</button>
+          <button id="useBrowserLocation" type="button">Use Browser Location</button>
+        </div>
         <div class="row">
           <div>
             <label for="acceptorLat">Acceptor Lat</label>
@@ -161,10 +172,9 @@
           </div>
         </div>
         <div class="row">
-          <button id="useBrowserLocation" type="button">Use Browser Location</button>
           <button id="loadNearbyTasks" class="secondary" type="button">Load Nearby Tasks</button>
+          <button id="calcDistance" class="secondary" type="button">Calculate Distance</button>
         </div>
-        <button id="calcDistance" class="secondary" type="button">Calculate Distance</button>
         <p class="muted" id="distanceResult">Distance not calculated.</p>
         <p class="muted" id="taskLoadStatus">Nearby tasks not loaded.</p>
       </section>
@@ -197,8 +207,10 @@
 
     const taskLatInput = document.getElementById('taskLat');
     const taskLngInput = document.getElementById('taskLng');
+    const taskLocationTextInput = document.getElementById('taskLocationText');
     const acceptorLatInput = document.getElementById('acceptorLat');
     const acceptorLngInput = document.getElementById('acceptorLng');
+    const acceptorLocationTextInput = document.getElementById('acceptorLocationText');
     const payloadPreview = document.getElementById('payloadPreview');
     const nearbyTasksPreview = document.getElementById('nearbyTasksPreview');
     const taskLabel = document.getElementById('taskLabel');
@@ -206,6 +218,8 @@
     const taskLoadStatus = document.getElementById('taskLoadStatus');
 
     let marker = null;
+    let acceptorMarker = null;
+    let distanceLine = null;
     let nearbyTaskMarkers = [];
 
     function readNumber(input) {
@@ -248,7 +262,7 @@
       const payload = {
         title: 'Sample Task',
         description: 'Task created from map selection',
-        location: 'Picked on map',
+        location: taskLocationTextInput.value.trim() || 'Picked on map',
         price: 100,
         scheduledAt: new Date(Date.now() + 3600_000).toISOString(),
         executionMode: 'offline',
@@ -327,6 +341,73 @@
       updatePayloadPreview();
     }
 
+    function placeAcceptorMarker(lat, lng) {
+      if (!isValidPoint(lat, lng)) {
+        return;
+      }
+
+      acceptorLatInput.value = String(lat);
+      acceptorLngInput.value = String(lng);
+
+      if (acceptorMarker) {
+        acceptorMarker.setLatLng([lat, lng]);
+      } else {
+        acceptorMarker = L.marker([lat, lng], {
+          title: 'Viewer location',
+        }).addTo(map);
+      }
+
+      acceptorMarker.bindPopup(`Viewer location\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`);
+      updateDistanceLine();
+    }
+
+    function updateDistanceLine() {
+      const taskLat = readNumber(taskLatInput);
+      const taskLng = readNumber(taskLngInput);
+      const acceptorLat = readNumber(acceptorLatInput);
+      const acceptorLng = readNumber(acceptorLngInput);
+
+      if (distanceLine) {
+        map.removeLayer(distanceLine);
+        distanceLine = null;
+      }
+
+      if (!isValidPoint(taskLat, taskLng) || !isValidPoint(acceptorLat, acceptorLng)) {
+        return;
+      }
+
+      distanceLine = L.polyline(
+        [
+          [taskLat, taskLng],
+          [acceptorLat, acceptorLng],
+        ],
+        {
+          color: '#0f766e',
+          weight: 4,
+          opacity: 0.75,
+          dashArray: '8 10',
+        }
+      ).addTo(map);
+    }
+
+    async function resolveLocationByText(locationText) {
+      const url = new URL('/v1/locations/resolve', window.location.origin);
+      url.searchParams.set('location', locationText);
+      const response = await fetchWithLongWait(url.toString(), {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('resolve_failed');
+      }
+
+      const payload = await response.json();
+      return payload.location;
+    }
+
     map.on('click', (event) => {
       placeTaskMarker(event.latlng.lat, event.latlng.lng);
     });
@@ -360,6 +441,41 @@
       );
 
       distanceResult.textContent = `Distance from acceptor to task: ${distanceKm} km`;
+      updateDistanceLine();
+    });
+
+    document.getElementById('resolveTaskLocation').addEventListener('click', async () => {
+      const locationText = taskLocationTextInput.value.trim();
+      if (!locationText) {
+        taskLabel.textContent = 'Enter a task address first.';
+        return;
+      }
+
+      try {
+        const resolved = await resolveLocationByText(locationText);
+        placeTaskMarker(resolved.lat, resolved.lng);
+        taskLabel.textContent = `Resolved "${locationText}" to ${resolved.resolvedName} (${resolved.lat.toFixed(4)}, ${resolved.lng.toFixed(4)})`;
+        map.setView([resolved.lat, resolved.lng], Math.max(map.getZoom(), 12));
+      } catch (_) {
+        taskLabel.textContent = 'Unable to resolve task address.';
+      }
+    });
+
+    document.getElementById('resolveAcceptorLocation').addEventListener('click', async () => {
+      const locationText = acceptorLocationTextInput.value.trim();
+      if (!locationText) {
+        taskLoadStatus.textContent = 'Enter a viewer address first.';
+        return;
+      }
+
+      try {
+        const resolved = await resolveLocationByText(locationText);
+        placeAcceptorMarker(resolved.lat, resolved.lng);
+        taskLoadStatus.textContent = `Resolved viewer address to ${resolved.resolvedName} (${resolved.lat.toFixed(4)}, ${resolved.lng.toFixed(4)}).`;
+        map.setView([resolved.lat, resolved.lng], Math.max(map.getZoom(), 12));
+      } catch (_) {
+        taskLoadStatus.textContent = 'Unable to resolve viewer address.';
+      }
     });
 
     document.getElementById('useBrowserLocation').addEventListener('click', () => {
@@ -375,6 +491,7 @@
           const lng = position.coords.longitude;
           acceptorLatInput.value = String(lat);
           acceptorLngInput.value = String(lng);
+          placeAcceptorMarker(lat, lng);
           taskLoadStatus.textContent = `Browser location loaded (${lat.toFixed(6)}, ${lng.toFixed(6)}).`;
           map.setView([lat, lng], Math.max(map.getZoom(), 13));
         },
@@ -403,6 +520,9 @@
         const url = new URL('/v1/tasks', window.location.origin);
         url.searchParams.set('acceptorLat', String(acceptorLat));
         url.searchParams.set('acceptorLng', String(acceptorLng));
+        if (acceptorLocationTextInput.value.trim()) {
+          url.searchParams.set('viewerLocation', acceptorLocationTextInput.value.trim());
+        }
         url.searchParams.set('sortBy', 'distance');
 
         const response = await fetchWithLongWait(url.toString(), {

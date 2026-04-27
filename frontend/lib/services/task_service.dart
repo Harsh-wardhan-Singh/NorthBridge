@@ -74,6 +74,7 @@ class TaskService {
   List<Map<String, dynamic>> _taskStore = const [];
   double? _acceptorLat;
   double? _acceptorLng;
+  String? _viewerLocation;
 
   Future<List<TaskSortOptionModel>> fetchSortOptions() async {
     return _sortOptions;
@@ -102,6 +103,7 @@ class TaskService {
           'status': status,
           'page': page,
           'pageSize': pageSize,
+          'viewerLocation': _viewerLocation,
           'acceptorLat': _acceptorLat,
           'acceptorLng': _acceptorLng,
         },
@@ -173,6 +175,12 @@ class TaskService {
   void setAcceptorLocation({double? lat, double? lng}) {
     _acceptorLat = lat;
     _acceptorLng = lng;
+  }
+
+  void setViewerLocation(String? location) {
+    final normalized = location?.trim();
+    _viewerLocation =
+        (normalized == null || normalized.isEmpty) ? null : normalized;
   }
 
   Future<TaskModel> createTask({

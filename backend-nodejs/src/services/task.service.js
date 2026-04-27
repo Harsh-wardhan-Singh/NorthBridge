@@ -30,6 +30,8 @@ const {
 } = require('../validators/task.validator');
 const {success, failure} = require('../utils/response.util');
 const {isValidGeoPoint, calculateRoundedDistanceKm} = require('../utils/geo.utils');
+const {resolveLocationPoint} = require('../utils/location-resolver.util');
+const {getPrivateUserById} = require('../repositories/user.repository');
 const eventService = require('./event.service');
 
 function parseNumber(value) {
@@ -150,11 +152,50 @@ function parseGeoCoordinate(value) {
 	return undefined;
 }
 
-function resolveAcceptorPoint(payload = {}) {
+async function resolveAcceptorPoint(payload = {}) {
 	const lat = parseGeoCoordinate(payload.acceptorLat);
 	const lng = parseGeoCoordinate(payload.acceptorLng);
 	const point = {lat, lng};
-	return isValidGeoPoint(point) ? point : null;
+	if (isValidGeoPoint(point)) {
+		return point;
+	}
+
+	const viewerLocation =
+		typeof payload.viewerLocation === 'string' ? payload.viewerLocation.trim() : '';
+	if (viewerLocation) {
+		const resolvedViewer = resolveLocationPoint(viewerLocation);
+		if (resolvedViewer) {
+			return {lat: resolvedViewer.lat, lng: resolvedViewer.lng};
+		}
+	}
+
+	const userId = typeof payload.userId === 'string' ? payload.userId.trim() : '';
+	if (!userId) {
+		return null;
+	}
+
+	const user = await getPrivateUserById(userId);
+	if (!user || !user.location) {
+		return null;
+	}
+
+	const resolvedUserLocation = resolveLocationPoint(user.location);
+	return resolvedUserLocation
+		? {lat: resolvedUserLocation.lat, lng: resolvedUserLocation.lng}
+		: null;
+}
+
+function resolveTaskPoint(task) {
+	if (!task || typeof task !== 'object') {
+		return null;
+	}
+
+	if (isValidGeoPoint(task.locationGeo)) {
+		return task.locationGeo;
+	}
+
+	const resolved = resolveLocationPoint(task.location);
+	return resolved ? {lat: resolved.lat, lng: resolved.lng} : null;
 }
 
 function applyAcceptorDistance(task, acceptorPoint) {
@@ -166,20 +207,31 @@ function applyAcceptorDistance(task, acceptorPoint) {
 		return task;
 	}
 
-	if (!isValidGeoPoint(task.locationGeo)) {
+	const taskPoint = resolveTaskPoint(task);
+	if (!taskPoint) {
 		return task;
 	}
 
 	return {
 		...task,
-		distanceKm: calculateRoundedDistanceKm(acceptorPoint, task.locationGeo, 1),
+		locationGeo: task.locationGeo || taskPoint,
+		distanceKm: calculateRoundedDistanceKm(acceptorPoint, taskPoint, 1),
 	};
 }
 
-function applyAcceptorDistanceToList(tasks, payload = {}) {
-	const acceptorPoint = resolveAcceptorPoint(payload);
+async function applyAcceptorDistanceToList(tasks, payload = {}) {
+	const acceptorPoint = await resolveAcceptorPoint(payload);
 	if (!acceptorPoint) {
-		return tasks;
+		return tasks.map((task) => {
+			const taskPoint = resolveTaskPoint(task);
+			if (!taskPoint) {
+				return task;
+			}
+			return {
+				...task,
+				locationGeo: task.locationGeo || taskPoint,
+			};
+		});
 	}
 
 	return tasks.map((task) => applyAcceptorDistance(task, acceptorPoint));
@@ -191,20 +243,29 @@ function fetchTasks(payload = {}) {
 		return Promise.resolve(failure(400, 'Invalid task query parameters.'));
 	}
 
+	const distanceContext = {
+		...validation.value,
+		userId: typeof payload.userId === 'string' ? payload.userId : undefined,
+		viewerLocation:
+			typeof payload.viewerLocation === 'string'
+				? payload.viewerLocation
+				: validation.value.viewerLocation,
+	};
+
 	const listOperation =
-		validation.value.status ||
-		validation.value.executionMode ||
-		validation.value.postedByUserId ||
-		validation.value.acceptedByUserId ||
-		validation.value.pageSize
-			? listTasksByQuery(validation.value)
+		distanceContext.status ||
+		distanceContext.executionMode ||
+		distanceContext.postedByUserId ||
+		distanceContext.acceptedByUserId ||
+		distanceContext.pageSize
+			? listTasksByQuery(distanceContext)
 			: listTasks();
 
-	return Promise.resolve(listOperation).then((tasks) => {
-		const withDistance = applyAcceptorDistanceToList(tasks, validation.value);
-		const filtered = filterTasks(withDistance, validation.value);
-		const sorted = sortTasks(filtered, validation.value.sortBy);
-		return success(200, paginateTasks(sorted, validation.value));
+	return Promise.resolve(listOperation).then(async (tasks) => {
+		const withDistance = await applyAcceptorDistanceToList(tasks, distanceContext);
+		const filtered = filterTasks(withDistance, distanceContext);
+		const sorted = sortTasks(filtered, distanceContext.sortBy);
+		return success(200, paginateTasks(sorted, distanceContext));
 	});
 }
 
@@ -219,9 +280,18 @@ async function fetchMyTaskHistory(payload = {}) {
 		return failure(401, 'User is not authenticated.');
 	}
 
+	const distanceContext = {
+		...validation.value,
+		userId,
+		viewerLocation:
+			typeof payload.viewerLocation === 'string'
+				? payload.viewerLocation
+				: validation.value.viewerLocation,
+	};
+
 	const [postedTasks, acceptedTasks] = await Promise.all([
-		listTasksByQuery({...validation.value, postedByUserId: userId}),
-		listTasksByQuery({...validation.value, acceptedByUserId: userId}),
+		listTasksByQuery({...distanceContext, postedByUserId: userId}),
+		listTasksByQuery({...distanceContext, acceptedByUserId: userId}),
 	]);
 	const historyById = new Map();
 	for (const task of [...postedTasks, ...acceptedTasks]) {
@@ -230,12 +300,15 @@ async function fetchMyTaskHistory(payload = {}) {
 		}
 	}
 
-	const withDistance = applyAcceptorDistanceToList(Array.from(historyById.values()), validation.value);
+	const withDistance = await applyAcceptorDistanceToList(
+		Array.from(historyById.values()),
+		distanceContext,
+	);
 	const history = withDistance.filter(
 		(task) => task.acceptedByUserId === userId || task.postedByUserId === userId,
 	);
-	const sorted = sortTasks(history, validation.value.sortBy || 'latestDate');
-	return success(200, paginateTasks(sorted, validation.value));
+	const sorted = sortTasks(history, distanceContext.sortBy || 'latestDate');
+	return success(200, paginateTasks(sorted, distanceContext));
 }
 
 async function fetchTaskById(taskId, payload = {}) {
@@ -244,7 +317,11 @@ async function fetchTaskById(taskId, payload = {}) {
 		return failure(404, 'Task not found.');
 	}
 
-	return success(200, applyAcceptorDistance(task, resolveAcceptorPoint(payload)));
+	const acceptorPoint = await resolveAcceptorPoint({
+		...payload,
+		userId: typeof payload.userId === 'string' ? payload.userId : undefined,
+	});
+	return success(200, applyAcceptorDistance(task, acceptorPoint));
 }
 
 async function createTaskEntry(payload = {}) {

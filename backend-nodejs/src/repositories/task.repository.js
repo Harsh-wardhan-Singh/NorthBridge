@@ -1,6 +1,7 @@
 const {getRequiredFirestoreDb} = require('../config/firebase');
 const {buildPrefixedId} = require('../utils/id.util');
 const {toTaskRecord, normalizeString} = require('../models/task.model');
+const {resolveLocationPoint} = require('../utils/location-resolver.util');
 
 const taskWriteThroughCache = new Map();
 
@@ -256,6 +257,8 @@ function nextTaskId() {
 }
 
 async function createTask(input) {
+	const resolvedLocationPoint =
+		normalizeGeoPoint(input.locationGeo) || resolveLocationPoint(input.location);
 	const created = normalizeTaskRecord({
 		id: nextTaskId(),
 		createdAt: new Date().toISOString(),
@@ -266,7 +269,9 @@ async function createTask(input) {
 		location: normalizeString(input.location),
 		price: typeof input.price === 'number' ? input.price : 0,
 		distanceKm: typeof input.distanceKm === 'number' ? input.distanceKm : 0,
-		locationGeo: normalizeGeoPoint(input.locationGeo),
+		locationGeo: resolvedLocationPoint
+			? {lat: resolvedLocationPoint.lat, lng: resolvedLocationPoint.lng}
+			: undefined,
 		scheduledAt: normalizeIsoString(input.scheduledAt, new Date().toISOString()),
 		executionMode: normalizeExecutionMode(input.executionMode),
 		isActive: true,

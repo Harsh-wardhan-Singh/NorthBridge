@@ -145,6 +145,10 @@ class TaskProvider extends ChangeNotifier {
     _taskService.setAcceptorLocation(lat: lat, lng: lng);
   }
 
+  void setViewerLocation(String? location) {
+    _taskService.setViewerLocation(location);
+  }
+
   Future<void> loadTasks() async {
     _transientError = null;
     _state = ViewState<List<TaskModel>>.loading(previousData: _cachedTasks);
