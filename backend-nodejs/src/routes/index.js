@@ -137,7 +137,7 @@ async function handleApiRequest(request) {
 		...(authErrorMessage ? {authErrorMessage} : {}),
 	};
 
-	if (method !== 'GET' && method !== 'POST' && method !== 'PATCH') {
+	if (method !== 'GET' && method !== 'HEAD' && method !== 'POST' && method !== 'PATCH') {
 		return {
 			status: 405,
 			body: {

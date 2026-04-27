@@ -8,6 +8,26 @@ const buildVersion = typeof pkg.version === 'string' ? pkg.version : '0.0.0';
 const healthRoutes = [
 	{
 		method: 'GET',
+		path: '/health',
+		execute: () => {
+			return {
+				status: 200,
+				body: {
+					status: 'ok',
+				},
+			};
+		},
+	},
+	{
+		method: 'HEAD',
+		path: '/health',
+		execute: () => ({
+			status: 200,
+			body: null,
+		}),
+	},
+	{
+		method: 'GET',
 		path: '/v1/health',
 		execute: () => {
 			const authDiagnostics = getAuthDiagnostics();
@@ -28,6 +48,14 @@ const healthRoutes = [
 				},
 			};
 		},
+	},
+	{
+		method: 'HEAD',
+		path: '/v1/health',
+		execute: () => ({
+			status: 200,
+			body: null,
+		}),
 	},
 ];
 
