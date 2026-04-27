@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:frontend/services/auth_service.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class WebSocketService {
   WebSocketService._internal();
@@ -20,10 +20,32 @@ class WebSocketService {
   Stream<dynamic> get messages => _messageController.stream;
 
   String _defaultWsBase() {
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return 'ws://10.0.2.2:3000';
+    return 'wss://northbridge.onrender.com';
+  }
+
+  Uri _buildWebSocketUri({
+    required String base,
+    String? token,
+    String? sessionUserId,
+    required bool shouldOverride,
+  }) {
+    final baseUri = Uri.parse(base);
+
+    if (token != null && token.isNotEmpty) {
+      return baseUri.replace(
+        path: '/',
+        queryParameters: {'token': token},
+      );
     }
-    return 'ws://localhost:3000';
+
+    if (shouldOverride) {
+      return baseUri.replace(
+        path: '/',
+        queryParameters: {'x-user-id': sessionUserId ?? 'dev'},
+      );
+    }
+
+    return baseUri.replace(path: '/');
   }
 
   Future<void> connect({String? token, bool override = false}) async {
@@ -47,13 +69,12 @@ class WebSocketService {
             sessionUserId != null &&
             sessionUserId.isNotEmpty) ||
         ((normalizedToken == null || normalizedToken.isEmpty) && kDebugMode);
-    final uri = (normalizedToken != null && normalizedToken.isNotEmpty)
-        ? Uri.parse('$base/?token=${Uri.encodeComponent(normalizedToken)}')
-        : (shouldOverride
-            ? Uri.parse(
-                '$base/?x-user-id=${Uri.encodeComponent(sessionUserId ?? 'dev')}',
-              )
-            : Uri.parse(base));
+    final uri = _buildWebSocketUri(
+      base: base,
+      token: normalizedToken,
+      sessionUserId: sessionUserId,
+      shouldOverride: shouldOverride,
+    );
 
     try {
       _shouldReconnect = true;

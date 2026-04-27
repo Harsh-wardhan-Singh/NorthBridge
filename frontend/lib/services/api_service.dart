@@ -71,7 +71,7 @@ class ApiService {
 
 	static const String _defaultBaseUrl = String.fromEnvironment(
 		'NB_API_BASE_URL',
-		defaultValue: '',
+		defaultValue: 'https://northbridge.onrender.com',
 	);
 
 	final String _baseUrl;
@@ -343,11 +343,7 @@ class ApiService {
 
 	static String _sanitizeBaseUrl(String baseUrl) {
 		if (baseUrl.trim().isEmpty) {
-			if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-				return 'http://10.0.2.2:3000';
-			}
-
-			return 'http://localhost:3000';
+			return 'https://northbridge.onrender.com';
 		}
 
 		return baseUrl.endsWith('/')
