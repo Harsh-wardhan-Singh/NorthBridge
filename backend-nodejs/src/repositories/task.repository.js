@@ -104,6 +104,126 @@ async function listTaskRecords() {
 	return mergeWithTaskCache(records);
 }
 
+function sanitizeTaskWritePayload(record) {
+	if (!record || typeof record !== 'object' || Array.isArray(record)) {
+		return record;
+	}
+
+	const sanitized = {};
+	for (const [key, value] of Object.entries(record)) {
+		if (typeof value === 'undefined') {
+			continue;
+		}
+
+		if (value && typeof value === 'object' && !Array.isArray(value)) {
+			sanitized[key] = sanitizeTaskWritePayload(value);
+			continue;
+		}
+
+		sanitized[key] = value;
+	}
+
+	return sanitized;
+}
+
+function buildTaskQuery(db, query = {}) {
+	let ref = db.collection('tasks');
+	let canUseDirectQuery = true;
+
+	const status = normalizeString(query.status);
+	if (status) {
+		if (typeof ref.where === 'function') {
+			ref = ref.where('status', '==', status);
+		} else {
+			canUseDirectQuery = false;
+		}
+	}
+
+	const executionMode = normalizeString(query.executionMode);
+	if (executionMode) {
+		if (typeof ref.where === 'function') {
+			ref = ref.where('executionMode', '==', executionMode);
+		} else {
+			canUseDirectQuery = false;
+		}
+	}
+
+	const postedByUserId = normalizeString(query.postedByUserId);
+	if (postedByUserId) {
+		if (typeof ref.where === 'function') {
+			ref = ref.where('postedByUserId', '==', postedByUserId);
+		} else {
+			canUseDirectQuery = false;
+		}
+	}
+
+	const acceptedByUserId = normalizeString(query.acceptedByUserId);
+	if (acceptedByUserId) {
+		if (typeof ref.where === 'function') {
+			ref = ref.where('acceptedByUserId', '==', acceptedByUserId);
+		} else {
+			canUseDirectQuery = false;
+		}
+	}
+
+	const page = typeof query.page === 'number' && query.page > 0 ? query.page : 1;
+	const pageSize = typeof query.pageSize === 'number' && query.pageSize > 0 ? query.pageSize : 0;
+	if (pageSize && page <= 1) {
+		if (typeof ref.limit === 'function') {
+			ref = ref.limit(pageSize);
+		} else {
+			canUseDirectQuery = false;
+		}
+	}
+
+	return {ref, canUseDirectQuery};
+}
+
+function applyTaskRecordQuery(records, query = {}) {
+	let filtered = [...records];
+
+	const status = normalizeString(query.status);
+	if (status) {
+		filtered = filtered.filter((record) => normalizeString(record.status) === status);
+	}
+
+	const executionMode = normalizeString(query.executionMode);
+	if (executionMode) {
+		filtered = filtered.filter((record) => normalizeString(record.executionMode) === executionMode);
+	}
+
+	const postedByUserId = normalizeString(query.postedByUserId);
+	if (postedByUserId) {
+		filtered = filtered.filter((record) => normalizeString(record.postedByUserId) === postedByUserId);
+	}
+
+	const acceptedByUserId = normalizeString(query.acceptedByUserId);
+	if (acceptedByUserId) {
+		filtered = filtered.filter((record) => normalizeString(record.acceptedByUserId) === acceptedByUserId);
+	}
+
+	const page = typeof query.page === 'number' && query.page > 0 ? query.page : 1;
+	const pageSize = typeof query.pageSize === 'number' && query.pageSize > 0 ? query.pageSize : 0;
+	if (pageSize) {
+		const start = (page - 1) * pageSize;
+		filtered = filtered.slice(start, start + pageSize);
+	}
+
+	return filtered;
+}
+
+async function queryTaskRecords(query = {}) {
+	const db = getRequiredFirestoreDb();
+	const {ref, canUseDirectQuery} = buildTaskQuery(db, query);
+	if (canUseDirectQuery) {
+		const snapshot = await ref.get();
+		const records = snapshot.docs.map((doc) => normalizeTaskRecord({id: doc.id, ...doc.data()}));
+		return applyTaskRecordQuery(mergeWithTaskCache(records), query);
+	}
+
+	return applyTaskRecordQuery(await listTaskRecords(), query);
+}
+
 async function getTaskRecordById(taskId) {
 	const normalizedTaskId = normalizeString(taskId);
 	if (!normalizedTaskId) {
@@ -123,6 +243,10 @@ async function listTasks() {
 	return (await listTaskRecords()).map((task) => toTaskRecord(task));
 }
 
+async function listTasksByQuery(query = {}) {
+	return (await queryTaskRecords(query)).map((task) => toTaskRecord(task));
+}
+
 async function getTaskById(taskId) {
 	return toTaskRecord(await getTaskRecordById(taskId));
 }
@@ -134,6 +258,7 @@ function nextTaskId() {
 async function createTask(input) {
 	const created = normalizeTaskRecord({
 		id: nextTaskId(),
+		createdAt: new Date().toISOString(),
 		postedByUserId: normalizeString(input.postedByUserId),
 		postedByName: normalizeString(input.postedByName),
 		title: normalizeString(input.title),
@@ -160,7 +285,7 @@ async function createTask(input) {
 	});
 
 	const db = getRequiredFirestoreDb();
-	await db.collection('tasks').doc(created.id).set(created);
+	await db.collection('tasks').doc(created.id).set(sanitizeTaskWritePayload(created));
 	upsertTaskCache(created);
 
 	return toTaskRecord(created);
@@ -179,7 +304,7 @@ async function updateTaskRecord(taskId, updates = {}) {
 		return null;
 	}
 
-	await ref.set(updates, {merge: true});
+	await ref.set(sanitizeTaskWritePayload(updates), {merge: true});
 	return upsertTaskCache({id: snapshot.id, ...snapshot.data(), ...updates});
 }
 
@@ -296,6 +421,7 @@ async function cancelTask(taskId) {
 
 module.exports = {
 	listTasks,
+	listTasksByQuery,
 	getTaskById,
 	getTaskRecordById,
 	nextTaskId,

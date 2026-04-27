@@ -2,6 +2,7 @@ import 'package:frontend/models/task_mode.dart';
 import 'package:frontend/models/task_sort_option_model.dart';
 import 'package:frontend/models/task_model.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/websocket_service.dart';
 
 enum TaskAcceptResult {
   accepted,
@@ -45,6 +46,16 @@ enum TaskRatingResult {
   invalidRating,
 }
 
+class TaskMutationResult<T> {
+  const TaskMutationResult({
+    required this.outcome,
+    this.task,
+  });
+
+  final T outcome;
+  final TaskModel? task;
+}
+
 class TaskService {
   TaskService({ApiService? apiService})
       : _apiService = apiService ?? ApiService();
@@ -69,11 +80,28 @@ class TaskService {
   }
 
   Future<List<TaskModel>> fetchTasks({TaskSortType? sortBy}) async {
+    return fetchTaskWindow(
+      sortBy: sortBy,
+      status: 'open',
+      page: 1,
+      pageSize: 25,
+    );
+  }
+
+  Future<List<TaskModel>> fetchTaskWindow({
+    TaskSortType? sortBy,
+    String? status,
+    int? page,
+    int? pageSize,
+  }) async {
     try {
       final response = await _apiService.getJson(
         '/v1/tasks',
         queryParameters: {
           'sortBy': _toApiSortValue(sortBy),
+          'status': status,
+          'page': page,
+          'pageSize': pageSize,
           'acceptorLat': _acceptorLat,
           'acceptorLng': _acceptorLng,
         },
@@ -91,9 +119,55 @@ class TaskService {
         rethrow;
       }
 
-      final tasks = _taskStore.map(TaskModel.fromJson).toList(growable: false);
-      return _sortTasks(tasks, sortBy);
+      var tasks = _taskStore.map(TaskModel.fromJson).toList(growable: false);
+      if (status != null && status.isNotEmpty) {
+        tasks = tasks.where((task) {
+          switch (status) {
+            case 'open':
+              return task.isActive && task.acceptedByUserId == null;
+            case 'accepted':
+              return task.acceptedByUserId != null;
+            case 'completed':
+              return !task.isActive;
+            default:
+              return true;
+          }
+        }).toList(growable: false);
+      }
+      final sorted = _sortTasks(tasks, sortBy);
+      if (page == null || pageSize == null || page < 1 || pageSize < 1) {
+        return sorted;
+      }
+      final start = (page - 1) * pageSize;
+      if (start >= sorted.length) {
+        return const [];
+      }
+      final end = (start + pageSize).clamp(0, sorted.length) as int;
+      return sorted.sublist(start, end);
     }
+  }
+
+  Future<List<TaskModel>> fetchMyTaskHistory({
+    TaskSortType? sortBy,
+    int? page,
+    int? pageSize,
+  }) async {
+    final response = await _apiService.getJson(
+      '/v1/tasks/history/me',
+      queryParameters: {
+        'sortBy': _toApiSortValue(sortBy) ?? 'latestDate',
+        'page': page,
+        'pageSize': pageSize,
+      },
+    );
+    final rawTasks = (response['tasks'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+    for (final task in rawTasks) {
+      _upsertTaskCache(task);
+    }
+    return rawTasks.map(TaskModel.fromJson).toList(growable: false);
   }
 
   void setAcceptorLocation({double? lat, double? lng}) {
@@ -112,6 +186,7 @@ class TaskService {
     required String postedByName,
     TaskLocationGeo? locationGeo,
   }) async {
+    await WebSocketService.instance.touch();
     final response = await _apiService.postJson(
       '/v1/tasks',
       body: {
@@ -137,11 +212,12 @@ class TaskService {
     return created;
   }
 
-  Future<TaskAcceptResult> acceptTask({
+  Future<TaskMutationResult<TaskAcceptResult>> acceptTask({
     required String taskId,
     required String userId,
   }) async {
     try {
+      await WebSocketService.instance.touch();
       final response = await _apiService.postJson(
         '/v1/tasks/$taskId/accept',
         body: {
@@ -150,30 +226,41 @@ class TaskService {
       );
       _upsertTaskCache(response['task']);
       final task = response['task'];
+      final parsedTask =
+          task is Map ? TaskModel.fromJson(Map<String, dynamic>.from(task)) : null;
       if (task is Map && task['acceptedByUserId'] == null) {
-        return TaskAcceptResult.pendingApproval;
+        return TaskMutationResult(
+          outcome: TaskAcceptResult.pendingApproval,
+          task: parsedTask,
+        );
       }
-      return TaskAcceptResult.accepted;
+      return TaskMutationResult(
+        outcome: TaskAcceptResult.accepted,
+        task: parsedTask,
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return TaskAcceptResult.notFound;
+        return const TaskMutationResult(outcome: TaskAcceptResult.notFound);
       }
       if (error.statusCode == 409) {
-        return TaskAcceptResult.alreadyAccepted;
+        return const TaskMutationResult(
+          outcome: TaskAcceptResult.alreadyAccepted,
+        );
       }
       if (error.statusCode == 400 &&
           error.message.toLowerCase().contains('own task')) {
-        return TaskAcceptResult.ownTask;
+        return const TaskMutationResult(outcome: TaskAcceptResult.ownTask);
       }
       rethrow;
     }
   }
 
-  Future<TaskAcceptanceDecisionResult> confirmTaskAcceptance({
+  Future<TaskMutationResult<TaskAcceptanceDecisionResult>> confirmTaskAcceptance({
     required String taskId,
     required String ownerUserId,
   }) async {
     try {
+      await WebSocketService.instance.touch();
       final response = await _apiService.postJson(
         '/v1/tasks/$taskId/accept/confirm',
         body: {
@@ -181,31 +268,45 @@ class TaskService {
         },
       );
       _upsertTaskCache(response['task']);
-      return TaskAcceptanceDecisionResult.accepted;
+      return TaskMutationResult(
+        outcome: TaskAcceptanceDecisionResult.accepted,
+        task: response['task'] is Map
+            ? TaskModel.fromJson(Map<String, dynamic>.from(response['task'] as Map))
+            : null,
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return TaskAcceptanceDecisionResult.notFound;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.notFound,
+        );
       }
       if (error.statusCode == 403) {
-        return TaskAcceptanceDecisionResult.notTaskOwner;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.notTaskOwner,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('already accepted')) {
-        return TaskAcceptanceDecisionResult.alreadyAccepted;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.alreadyAccepted,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('no pending acceptance')) {
-        return TaskAcceptanceDecisionResult.noPendingRequest;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.noPendingRequest,
+        );
       }
       rethrow;
     }
   }
 
-  Future<TaskAcceptanceDecisionResult> declineTaskAcceptance({
+  Future<TaskMutationResult<TaskAcceptanceDecisionResult>> declineTaskAcceptance({
     required String taskId,
     required String ownerUserId,
   }) async {
     try {
+      await WebSocketService.instance.touch();
       final response = await _apiService.postJson(
         '/v1/tasks/$taskId/accept/decline',
         body: {
@@ -213,31 +314,45 @@ class TaskService {
         },
       );
       _upsertTaskCache(response['task']);
-      return TaskAcceptanceDecisionResult.declined;
+      return TaskMutationResult(
+        outcome: TaskAcceptanceDecisionResult.declined,
+        task: response['task'] is Map
+            ? TaskModel.fromJson(Map<String, dynamic>.from(response['task'] as Map))
+            : null,
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return TaskAcceptanceDecisionResult.notFound;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.notFound,
+        );
       }
       if (error.statusCode == 403) {
-        return TaskAcceptanceDecisionResult.notTaskOwner;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.notTaskOwner,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('already accepted')) {
-        return TaskAcceptanceDecisionResult.alreadyAccepted;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.alreadyAccepted,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('no pending acceptance')) {
-        return TaskAcceptanceDecisionResult.noPendingRequest;
+        return const TaskMutationResult(
+          outcome: TaskAcceptanceDecisionResult.noPendingRequest,
+        );
       }
       rethrow;
     }
   }
 
-  Future<TaskCompletionRequestResult> requestTaskCompletion({
+  Future<TaskMutationResult<TaskCompletionRequestResult>> requestTaskCompletion({
     required String taskId,
     required String helperUserId,
   }) async {
     try {
+      await WebSocketService.instance.touch();
       final response = await _apiService.postJson(
         '/v1/tasks/$taskId/completion/request',
         body: {
@@ -245,26 +360,38 @@ class TaskService {
         },
       );
       _upsertTaskCache(response['task']);
-      return TaskCompletionRequestResult.requested;
+      return TaskMutationResult(
+        outcome: TaskCompletionRequestResult.requested,
+        task: response['task'] is Map
+            ? TaskModel.fromJson(Map<String, dynamic>.from(response['task'] as Map))
+            : null,
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return TaskCompletionRequestResult.notFound;
+        return const TaskMutationResult(
+          outcome: TaskCompletionRequestResult.notFound,
+        );
       }
       if (error.statusCode == 409) {
-        return TaskCompletionRequestResult.alreadyCompleted;
+        return const TaskMutationResult(
+          outcome: TaskCompletionRequestResult.alreadyCompleted,
+        );
       }
       if (error.statusCode == 403) {
-        return TaskCompletionRequestResult.notAcceptedHelper;
+        return const TaskMutationResult(
+          outcome: TaskCompletionRequestResult.notAcceptedHelper,
+        );
       }
       rethrow;
     }
   }
 
-  Future<TaskCompletionConfirmResult> confirmTaskCompletion({
+  Future<TaskMutationResult<TaskCompletionConfirmResult>> confirmTaskCompletion({
     required String taskId,
     required String ownerUserId,
   }) async {
     try {
+      await WebSocketService.instance.touch();
       final response = await _apiService.postJson(
         '/v1/tasks/$taskId/completion/confirm',
         body: {
@@ -272,31 +399,45 @@ class TaskService {
         },
       );
       _upsertTaskCache(response['task']);
-      return TaskCompletionConfirmResult.completed;
+      return TaskMutationResult(
+        outcome: TaskCompletionConfirmResult.completed,
+        task: response['task'] is Map
+            ? TaskModel.fromJson(Map<String, dynamic>.from(response['task'] as Map))
+            : null,
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return TaskCompletionConfirmResult.notFound;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.notFound,
+        );
       }
       if (error.statusCode == 403) {
-        return TaskCompletionConfirmResult.notTaskOwner;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.notTaskOwner,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('already completed')) {
-        return TaskCompletionConfirmResult.alreadyCompleted;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.alreadyCompleted,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('no pending completion')) {
-        return TaskCompletionConfirmResult.noPendingRequest;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.noPendingRequest,
+        );
       }
       rethrow;
     }
   }
 
-  Future<TaskCompletionConfirmResult> declineTaskCompletion({
+  Future<TaskMutationResult<TaskCompletionConfirmResult>> declineTaskCompletion({
     required String taskId,
     required String ownerUserId,
   }) async {
     try {
+      await WebSocketService.instance.touch();
       final response = await _apiService.postJson(
         '/v1/tasks/$taskId/completion/decline',
         body: {
@@ -304,32 +445,46 @@ class TaskService {
         },
       );
       _upsertTaskCache(response['task']);
-      return TaskCompletionConfirmResult.declined;
+      return TaskMutationResult(
+        outcome: TaskCompletionConfirmResult.declined,
+        task: response['task'] is Map
+            ? TaskModel.fromJson(Map<String, dynamic>.from(response['task'] as Map))
+            : null,
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return TaskCompletionConfirmResult.notFound;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.notFound,
+        );
       }
       if (error.statusCode == 403) {
-        return TaskCompletionConfirmResult.notTaskOwner;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.notTaskOwner,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('already completed')) {
-        return TaskCompletionConfirmResult.alreadyCompleted;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.alreadyCompleted,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('no pending completion')) {
-        return TaskCompletionConfirmResult.noPendingRequest;
+        return const TaskMutationResult(
+          outcome: TaskCompletionConfirmResult.noPendingRequest,
+        );
       }
       rethrow;
     }
   }
 
-  Future<TaskRatingResult> submitTaskRating({
+  Future<TaskMutationResult<TaskRatingResult>> submitTaskRating({
     required String taskId,
     required String ownerUserId,
     required double rating,
   }) async {
     try {
+      await WebSocketService.instance.touch();
       final response = await _apiService.postJson(
         '/v1/tasks/$taskId/rating',
         body: {
@@ -338,24 +493,37 @@ class TaskService {
         },
       );
       _upsertTaskCache(response['task']);
-      return TaskRatingResult.rated;
+      return TaskMutationResult(
+        outcome: TaskRatingResult.rated,
+        task: response['task'] is Map
+            ? TaskModel.fromJson(Map<String, dynamic>.from(response['task'] as Map))
+            : null,
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return TaskRatingResult.notFound;
+        return const TaskMutationResult(outcome: TaskRatingResult.notFound);
       }
       if (error.statusCode == 403) {
-        return TaskRatingResult.notTaskOwner;
+        return const TaskMutationResult(
+          outcome: TaskRatingResult.notTaskOwner,
+        );
       }
       if (error.statusCode == 400) {
-        return TaskRatingResult.invalidRating;
+        return const TaskMutationResult(
+          outcome: TaskRatingResult.invalidRating,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('not completed')) {
-        return TaskRatingResult.notCompleted;
+        return const TaskMutationResult(
+          outcome: TaskRatingResult.notCompleted,
+        );
       }
       if (error.statusCode == 409 &&
           error.message.toLowerCase().contains('no pending rating')) {
-        return TaskRatingResult.noPendingRating;
+        return const TaskMutationResult(
+          outcome: TaskRatingResult.noPendingRating,
+        );
       }
       rethrow;
     }

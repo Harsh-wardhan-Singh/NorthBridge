@@ -35,6 +35,15 @@ describe('task.service', () => {
 
 		expect(accepted.ok).toBe(true);
 
+		const confirmed = await taskService.confirmTaskAcceptanceEntry(
+			created.data.id,
+			{
+				ownerUserId: 'u_1001',
+			},
+		);
+
+		expect(confirmed.ok).toBe(true);
+
 		const historyAsOwner = await taskService.fetchMyTaskHistory({userId: 'u_1001'});
 		expect(historyAsOwner.ok).toBe(true);
 		expect(historyAsOwner.data.some((task) => task.id === created.data.id)).toBe(true);
@@ -56,7 +65,7 @@ describe('task.service', () => {
 		expect(result.status).toBe(400);
 	});
 
-	test('created task can be accepted by non-owner', async () => {
+	test('created task can be requested by non-owner', async () => {
 		const createResult = await taskService.createTaskEntry({
 			title: 'Unit Test Task',
 			description: 'Task created from unit test.',
@@ -77,6 +86,41 @@ describe('task.service', () => {
 
 		expect(acceptResult.ok).toBe(true);
 		expect(acceptResult.status).toBe(200);
-		expect(acceptResult.data.acceptedByUserId).toBe('u_1002');
+		expect(acceptResult.data.pendingAcceptanceByUserId).toBe('u_1002');
+		expect(acceptResult.data.acceptedByUserId).toBeUndefined();
+	});
+
+	test('fetchTasks supports status filtering with page size limits', async () => {
+		await taskService.createTaskEntry({
+			title: 'Open task one',
+			description: 'Open task one for filtered query.',
+			location: 'Test City',
+			price: 50,
+			scheduledAt: new Date().toISOString(),
+			executionMode: 'offline',
+			postedByUserId: 'u_query_owner_1',
+			postedByName: 'Owner One',
+		});
+		await taskService.createTaskEntry({
+			title: 'Open task two',
+			description: 'Open task two for filtered query.',
+			location: 'Test City',
+			price: 75,
+			scheduledAt: new Date().toISOString(),
+			executionMode: 'offline',
+			postedByUserId: 'u_query_owner_2',
+			postedByName: 'Owner Two',
+		});
+
+		const result = await taskService.fetchTasks({
+			status: 'open',
+			page: 1,
+			pageSize: 1,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(result.status).toBe(200);
+		expect(result.data).toHaveLength(1);
+		expect(result.data[0].status).toBe('open');
 	});
 });

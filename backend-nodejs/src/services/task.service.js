@@ -1,5 +1,6 @@
 const {
 	listTasks,
+	listTasksByQuery,
 	getTaskById,
 	createTask,
 	requestTaskAcceptance,
@@ -11,6 +12,7 @@ const {
 	submitTaskRating,
 	cancelTask,
 } = require('../repositories/task.repository');
+const {submitRatingForUser} = require('../repositories/user.repository');
 const {
 	getChatByTaskAndUsers,
 	createChat,
@@ -189,7 +191,16 @@ function fetchTasks(payload = {}) {
 		return Promise.resolve(failure(400, 'Invalid task query parameters.'));
 	}
 
-	return Promise.resolve(listTasks()).then((tasks) => {
+	const listOperation =
+		validation.value.status ||
+		validation.value.executionMode ||
+		validation.value.postedByUserId ||
+		validation.value.acceptedByUserId ||
+		validation.value.pageSize
+			? listTasksByQuery(validation.value)
+			: listTasks();
+
+	return Promise.resolve(listOperation).then((tasks) => {
 		const withDistance = applyAcceptorDistanceToList(tasks, validation.value);
 		const filtered = filterTasks(withDistance, validation.value);
 		const sorted = sortTasks(filtered, validation.value.sortBy);
@@ -208,8 +219,18 @@ async function fetchMyTaskHistory(payload = {}) {
 		return failure(401, 'User is not authenticated.');
 	}
 
-	const tasks = await listTasks();
-	const withDistance = applyAcceptorDistanceToList(tasks, validation.value);
+	const [postedTasks, acceptedTasks] = await Promise.all([
+		listTasksByQuery({...validation.value, postedByUserId: userId}),
+		listTasksByQuery({...validation.value, acceptedByUserId: userId}),
+	]);
+	const historyById = new Map();
+	for (const task of [...postedTasks, ...acceptedTasks]) {
+		if (task?.id) {
+			historyById.set(task.id, task);
+		}
+	}
+
+	const withDistance = applyAcceptorDistanceToList(Array.from(historyById.values()), validation.value);
 	const history = withDistance.filter(
 		(task) => task.acceptedByUserId === userId || task.postedByUserId === userId,
 	);
@@ -475,6 +496,9 @@ async function submitTaskRatingEntry(taskId, payload = {}) {
 	}
 
 	const updatedTask = await submitTaskRating(taskId, validation.value.rating);
+	if (updatedTask?.completedByUserId) {
+		await submitRatingForUser(updatedTask.completedByUserId, validation.value.rating);
+	}
 	// rating events are mostly internal; if needed, hook here
 	return success(200, updatedTask);
 }

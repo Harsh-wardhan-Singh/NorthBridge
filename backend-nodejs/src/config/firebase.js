@@ -6,6 +6,106 @@ const {getEnvConfig} = require('./env');
 
 let cachedClient = null;
 
+function createInMemoryFirestore() {
+	class InMemoryDocumentSnapshot {
+		constructor(id, data) {
+			this.id = id || null;
+			this._data = data || null;
+			this.exists = Boolean(data);
+		}
+
+		data() {
+			return this._data;
+		}
+	}
+
+	class InMemoryQuerySnapshot {
+		constructor(docs) {
+			this.docs = docs.map((d) => new InMemoryDocumentSnapshot(d.id, d.data));
+			this.empty = this.docs.length === 0;
+			this.size = this.docs.length;
+		}
+	}
+
+	class InMemoryDocumentReference {
+		constructor(store, collectionName, documentId) {
+			this.store = store;
+			this.collectionName = collectionName;
+			this.documentId = documentId;
+		}
+
+		async get() {
+			const collection = this.store.get(this.collectionName) || new Map();
+			const data = collection.has(this.documentId) ? collection.get(this.documentId) : null;
+			return new InMemoryDocumentSnapshot(this.documentId, data);
+		}
+
+		async set(data, options = {}) {
+			const collection = this.store.get(this.collectionName) || new Map();
+			const existing = collection.get(this.documentId) || {};
+			const merged = options.merge ? {...existing, ...data} : {...data};
+			collection.set(this.documentId, merged);
+			this.store.set(this.collectionName, collection);
+			return merged;
+		}
+
+		async delete() {
+			const collection = this.store.get(this.collectionName) || new Map();
+			collection.delete(this.documentId);
+			this.store.set(this.collectionName, collection);
+		}
+	}
+
+	class InMemoryCollectionReference {
+		constructor(store, collectionName) {
+			this.store = store;
+			this.collectionName = collectionName;
+		}
+
+		async get() {
+			const collection = this.store.get(this.collectionName) || new Map();
+			const docs = [];
+			for (const [id, data] of collection.entries()) {
+				docs.push({id, data});
+			}
+			return new InMemoryQuerySnapshot(docs);
+		}
+
+		doc(documentId) {
+			return new InMemoryDocumentReference(this.store, this.collectionName, documentId);
+		}
+
+		where(field, operator, value) {
+			const collection = this.store.get(this.collectionName) || new Map();
+			const results = [];
+			for (const [id, data] of collection.entries()) {
+				if (!data || typeof data !== 'object') continue;
+				if (operator === '==' && data[field] === value) {
+					results.push({id, data});
+				}
+			}
+
+			const qr = new InMemoryQuerySnapshot(results);
+			return {
+				get: async () => qr,
+				limit: (n) => ({get: async () => new InMemoryQuerySnapshot(results.slice(0, n))}),
+			};
+		}
+	}
+
+	class InMemoryFirestore {
+		constructor() {
+			this._store = new Map();
+		}
+
+		collection(name) {
+			return new InMemoryCollectionReference(this._store, name);
+		}
+	}
+
+	return new InMemoryFirestore();
+}
+
 function isFirebaseConfigured(env = getEnvConfig()) {
 	return Boolean(
 		env.firebaseProjectId ||
@@ -472,106 +572,10 @@ function initializeFirebaseAdmin(env = getEnvConfig()) {
 		return cachedClient;
 	}
 
-	if (!isFirebaseConfigured(env)) {
-		// Provide a lightweight in-memory Firestore replacement for local development
-		// and CI tests when real Firestore credentials are not present.
-		class InMemoryDocumentSnapshot {
-			constructor(id, data) {
-				this.id = id || null;
-				this._data = data || null;
-				this.exists = Boolean(data);
-			}
-
-			data() {
-				return this._data;
-			}
-		}
-
-		class InMemoryQuerySnapshot {
-			constructor(docs) {
-				this.docs = docs.map((d) => new InMemoryDocumentSnapshot(d.id, d.data));
-				this.empty = this.docs.length === 0;
-				this.size = this.docs.length;
-			}
-		}
-
-		class InMemoryDocumentReference {
-			constructor(store, collectionName, documentId) {
-				this.store = store;
-				this.collectionName = collectionName;
-				this.documentId = documentId;
-			}
-
-			async get() {
-				const collection = this.store.get(this.collectionName) || new Map();
-				const data = collection.has(this.documentId) ? collection.get(this.documentId) : null;
-				return new InMemoryDocumentSnapshot(this.documentId, data);
-			}
-
-			async set(data, options = {}) {
-				const collection = this.store.get(this.collectionName) || new Map();
-				const existing = collection.get(this.documentId) || {};
-				const merged = options.merge ? {...existing, ...data} : {...data};
-				collection.set(this.documentId, merged);
-				this.store.set(this.collectionName, collection);
-				return merged;
-			}
-
-			async delete() {
-				const collection = this.store.get(this.collectionName) || new Map();
-				collection.delete(this.documentId);
-				this.store.set(this.collectionName, collection);
-			}
-		}
-
-		class InMemoryCollectionReference {
-			constructor(store, collectionName) {
-				this.store = store;
-				this.collectionName = collectionName;
-			}
-
-			async get() {
-				const collection = this.store.get(this.collectionName) || new Map();
-				const docs = [];
-				for (const [id, data] of collection.entries()) {
-					docs.push({id, data});
-				}
-				return new InMemoryQuerySnapshot(docs);
-			}
-
-			doc(documentId) {
-				return new InMemoryDocumentReference(this.store, this.collectionName, documentId);
-			}
-
-			where(field, operator, value) {
-				const collection = this.store.get(this.collectionName) || new Map();
-				const results = [];
-				for (const [id, data] of collection.entries()) {
-					if (!data || typeof data !== 'object') continue;
-					if (operator === '==' && data[field] === value) {
-						results.push({id, data});
-					}
-				}
-
-				const qr = new InMemoryQuerySnapshot(results);
-				return {
-					get: async () => qr,
-					limit: (n) => ({get: async () => new InMemoryQuerySnapshot(results.slice(0, n))}),
-				};
-			}
-		}
-
-		class InMemoryFirestore {
-			constructor() {
-				this._store = new Map();
-			}
-
-			collection(name) {
-				return new InMemoryCollectionReference(this._store, name);
-			}
-		}
-
-		cachedClient = new InMemoryFirestore();
+	const forceInMemoryForTests =
+		process.env.NODE_ENV === 'test' && process.env.USE_REAL_FIREBASE_IN_TESTS !== 'true';
+	if (!isFirebaseConfigured(env) || forceInMemoryForTests) {
+		cachedClient = createInMemoryFirestore();
 		return cachedClient;
 	}
 

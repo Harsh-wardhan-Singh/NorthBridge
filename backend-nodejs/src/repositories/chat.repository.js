@@ -3,6 +3,25 @@ const {buildPrefixedId} = require('../utils/id.util');
 const {toChatRecord, normalizeString} = require('../models/chat.model');
 const {toMessageRecord} = require('../models/message.model');
 
+function sanitizeWritePayload(record) {
+	if (!record || typeof record !== 'object' || Array.isArray(record)) {
+		return record;
+	}
+
+	const sanitized = {};
+	for (const [key, value] of Object.entries(record)) {
+		if (typeof value === 'undefined') {
+			continue;
+		}
+		if (value && typeof value === 'object' && !Array.isArray(value)) {
+			sanitized[key] = sanitizeWritePayload(value);
+			continue;
+		}
+		sanitized[key] = value;
+	}
+	return sanitized;
+}
+
 function normalizeChatRecord(record) {
 	if (!record || typeof record !== 'object') {
 		return null;
@@ -113,7 +132,7 @@ async function updateChatLastMessage(chatId, message) {
 		lastMessage: normalizedMessage,
 		updatedAt: new Date().toISOString(),
 	};
-	await ref.set(updates, {merge: true});
+	await ref.set(sanitizeWritePayload(updates), {merge: true});
 	return toChatRecord(normalizeChatRecord({chatId: snapshot.id, ...snapshot.data(), ...updates}));
 }
 
@@ -134,7 +153,7 @@ async function updateChat(chatId, updates = {}) {
 		...updates,
 		updatedAt: new Date().toISOString(),
 	};
-	await ref.set(payload, {merge: true});
+	await ref.set(sanitizeWritePayload(payload), {merge: true});
 	return toChatRecord(normalizeChatRecord({chatId: snapshot.id, ...snapshot.data(), ...payload}));
 }
 
@@ -156,7 +175,7 @@ async function createChat(input = {}) {
 	});
 
 	const db = getRequiredFirestoreDb();
-	await db.collection('chats').doc(created.chatId).set(created);
+	await db.collection('chats').doc(created.chatId).set(sanitizeWritePayload(created));
 
 	return toChatRecord(created);
 }

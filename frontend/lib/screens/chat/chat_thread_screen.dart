@@ -470,10 +470,6 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   }
 
   Future<void> _submitCompletionRating(double rating, String targetUserId) async {
-    final updatedProfile = await widget.authProvider.submitRatingForUser(
-      targetUserId: targetUserId,
-      rating: rating,
-    );
     final taskOutcome = await widget.taskProvider.submitTaskRating(
       taskId: widget.chat.taskId,
       ownerUserId: _currentUserId,
@@ -484,8 +480,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       return;
     }
 
-    if (updatedProfile && taskOutcome == SubmitRatingOutcome.rated) {
-      await widget.taskProvider.loadTasks();
+    if (taskOutcome == SubmitRatingOutcome.rated) {
+      await widget.taskProvider.loadTasksIfStale(force: true);
+      await widget.taskProvider.loadMyTaskHistoryIfStale(force: true);
       await widget.authProvider.loadCurrentUser();
       await widget.chatProvider.sendMessage(
         chatId: widget.chat.chatId,
@@ -530,10 +527,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                 }
                 final messages = state.data ?? const [];
                 final currentUserId = _currentUserId;
-                final matchingTasks = widget.taskProvider.tasks
-                    .where((item) => item.id == widget.chat.taskId)
-                    .toList(growable: false);
-                final task = matchingTasks.isEmpty ? null : matchingTasks.first;
+                final task = widget.taskProvider.findTaskById(widget.chat.taskId);
                 final isOwnTask = currentUserId == widget.chat.taskOwnerUserId;
                 final counterpartUserId = widget.chat.users.firstWhere(
                   (id) => id != currentUserId,

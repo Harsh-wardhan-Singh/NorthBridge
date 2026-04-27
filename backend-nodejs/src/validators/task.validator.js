@@ -179,6 +179,8 @@ function validateTaskListPayload(payload = {}) {
 		sortBy: sortByRaw || undefined,
 		executionMode: executionModeRaw || undefined,
 		status: statusRaw || undefined,
+		postedByUserId: normalizeString(payload.postedByUserId) || undefined,
+		acceptedByUserId: normalizeString(payload.acceptedByUserId) || undefined,
 		minPrice,
 		maxPrice,
 		page,

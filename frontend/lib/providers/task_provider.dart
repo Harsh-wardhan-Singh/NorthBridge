@@ -61,15 +61,21 @@ class TaskProvider extends ChangeNotifier {
 
   ViewState<List<TaskModel>> _state;
   List<TaskModel> _cachedTasks = const [];
+  List<TaskModel> _cachedHistoryTasks = const [];
+  ViewState<List<TaskModel>> _historyState = ViewState<List<TaskModel>>.loading();
   String? _transientError;
   bool _isCreating = false;
   List<TaskSortOptionModel> _sortOptions = const [];
   TaskSortType? _selectedSort;
   double? _acceptorLat;
   double? _acceptorLng;
+  DateTime? _lastTasksLoadedAt;
+  DateTime? _lastHistoryLoadedAt;
 
   ViewState<List<TaskModel>> get state => _state;
   List<TaskModel> get tasks => _state.data ?? const [];
+  ViewState<List<TaskModel>> get historyState => _historyState;
+  List<TaskModel> get historyTasks => _historyState.data ?? const [];
   bool get hasCachedData => _cachedTasks.isNotEmpty;
   String? get transientError => _transientError;
   bool get isCreating => _isCreating;
@@ -87,6 +93,20 @@ class TaskProvider extends ChangeNotifier {
 
   double? get acceptorLat => _acceptorLat;
   double? get acceptorLng => _acceptorLng;
+
+  TaskModel? findTaskById(String taskId) {
+    for (final task in _cachedTasks) {
+      if (task.id == taskId) {
+        return task;
+      }
+    }
+    for (final task in _cachedHistoryTasks) {
+      if (task.id == taskId) {
+        return task;
+      }
+    }
+    return null;
+  }
 
   void applyRealtimeEvent(dynamic event) {
     if (event is! Map) {
@@ -137,6 +157,7 @@ class TaskProvider extends ChangeNotifier {
 
       final fetchedTasks = await _taskService.fetchTasks(sortBy: _selectedSort);
       _cachedTasks = fetchedTasks;
+      _lastTasksLoadedAt = DateTime.now();
 
       if (fetchedTasks.isEmpty) {
         _state = ViewState<List<TaskModel>>.empty(
@@ -158,6 +179,68 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadTasksIfStale({
+    Duration maxAge = const Duration(minutes: 2),
+    bool force = false,
+  }) async {
+    final lastLoadedAt = _lastTasksLoadedAt;
+    if (!force &&
+        _cachedTasks.isNotEmpty &&
+        lastLoadedAt != null &&
+        DateTime.now().difference(lastLoadedAt) < maxAge) {
+      return;
+    }
+
+    await loadTasks();
+  }
+
+  Future<void> loadMyTaskHistory() async {
+    _historyState = ViewState<List<TaskModel>>.loading(
+      previousData: _cachedHistoryTasks,
+    );
+    notifyListeners();
+
+    try {
+      final fetchedTasks = await _taskService.fetchMyTaskHistory(
+        sortBy: TaskSortType.latestDate,
+        page: 1,
+        pageSize: 50,
+      );
+      _cachedHistoryTasks = fetchedTasks;
+      _lastHistoryLoadedAt = DateTime.now();
+      _historyState = fetchedTasks.isEmpty
+          ? ViewState<List<TaskModel>>.empty(
+              message: 'No accepted or posted task history yet.',
+            )
+          : ViewState<List<TaskModel>>.success(fetchedTasks);
+    } catch (_) {
+      if (_cachedHistoryTasks.isNotEmpty) {
+        _historyState = ViewState<List<TaskModel>>.success(_cachedHistoryTasks);
+      } else {
+        _historyState = ViewState<List<TaskModel>>.error(
+          'Unable to load task history right now.',
+        );
+      }
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> loadMyTaskHistoryIfStale({
+    Duration maxAge = const Duration(minutes: 3),
+    bool force = false,
+  }) async {
+    final lastLoadedAt = _lastHistoryLoadedAt;
+    if (!force &&
+        _cachedHistoryTasks.isNotEmpty &&
+        lastLoadedAt != null &&
+        DateTime.now().difference(lastLoadedAt) < maxAge) {
+      return;
+    }
+
+    await loadMyTaskHistory();
+  }
+
   Future<void> retry() async {
     await loadTasks();
   }
@@ -169,16 +252,10 @@ class TaskProvider extends ChangeNotifier {
     }
 
     final task = TaskModel.fromJson(rawTask);
-    final next = List<TaskModel>.from(_cachedTasks);
-    final index = next.indexWhere((item) => item.id == task.id);
-    if (index < 0) {
-      next.insert(0, task);
-    } else {
-      next[index] = task;
-    }
-
-    _cachedTasks = next;
-    _state = ViewState<List<TaskModel>>.success(next);
+    _cachedTasks = _upsertTaskList(_cachedTasks, task);
+    _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, task);
+    _state = _toBrowseState(_cachedTasks);
+    _historyState = _toHistoryState(_cachedHistoryTasks);
     notifyListeners();
   }
 
@@ -189,19 +266,14 @@ class TaskProvider extends ChangeNotifier {
       return;
     }
 
-    final next = List<TaskModel>.from(_cachedTasks);
-    final index = next.indexWhere((task) => task.id == taskId);
-    if (index < 0) {
-      return;
-    }
-
-    next[index] = next[index].copyWith(
-      acceptedByUserId: acceptedBy,
-      acceptedAt: DateTime.now(),
-      clearPendingAcceptance: true,
+    _updateTaskById(
+      taskId,
+      (task) => task.copyWith(
+        acceptedByUserId: acceptedBy,
+        acceptedAt: DateTime.now(),
+        clearPendingAcceptance: true,
+      ),
     );
-    _cachedTasks = next;
-    _state = ViewState<List<TaskModel>>.success(next);
     notifyListeners();
   }
 
@@ -212,18 +284,13 @@ class TaskProvider extends ChangeNotifier {
       return;
     }
 
-    final next = List<TaskModel>.from(_cachedTasks);
-    final index = next.indexWhere((task) => task.id == taskId);
-    if (index < 0) {
-      return;
-    }
-
-    next[index] = next[index].copyWith(
-      pendingAcceptanceByUserId: pendingAcceptanceBy,
-      pendingAcceptanceAt: DateTime.now(),
+    _updateTaskById(
+      taskId,
+      (task) => task.copyWith(
+        pendingAcceptanceByUserId: pendingAcceptanceBy,
+        pendingAcceptanceAt: DateTime.now(),
+      ),
     );
-    _cachedTasks = next;
-    _state = ViewState<List<TaskModel>>.success(next);
     notifyListeners();
   }
 
@@ -233,15 +300,10 @@ class TaskProvider extends ChangeNotifier {
       return;
     }
 
-    final next = List<TaskModel>.from(_cachedTasks);
-    final index = next.indexWhere((task) => task.id == taskId);
-    if (index < 0) {
-      return;
-    }
-
-    next[index] = next[index].copyWith(clearPendingAcceptance: true);
-    _cachedTasks = next;
-    _state = ViewState<List<TaskModel>>.success(next);
+    _updateTaskById(
+      taskId,
+      (task) => task.copyWith(clearPendingAcceptance: true),
+    );
     notifyListeners();
   }
 
@@ -277,14 +339,10 @@ class TaskProvider extends ChangeNotifier {
         locationGeo: locationGeo,
       );
 
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      if (refreshed.isEmpty) {
-        _cachedTasks = [createdTask];
-        _state = ViewState<List<TaskModel>>.success(_cachedTasks);
-      } else {
-        _cachedTasks = refreshed;
-        _state = ViewState<List<TaskModel>>.success(_cachedTasks);
-      }
+      _cachedTasks = _upsertTaskList(_cachedTasks, createdTask);
+      _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, createdTask);
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
 
       _isCreating = false;
       notifyListeners();
@@ -303,16 +361,15 @@ class TaskProvider extends ChangeNotifier {
     try {
       final result =
           await _taskService.acceptTask(taskId: taskId, userId: userId);
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      _cachedTasks = refreshed;
-      _state = refreshed.isEmpty
-          ? ViewState<List<TaskModel>>.empty(
-              message: 'No tasks available right now.',
-            )
-          : ViewState<List<TaskModel>>.success(refreshed);
+      if (result.task != null) {
+        _cachedTasks = _upsertTaskList(_cachedTasks, result.task!);
+        _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, result.task!);
+      }
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
       notifyListeners();
 
-      switch (result) {
+      switch (result.outcome) {
         case TaskAcceptResult.accepted:
           return AcceptTaskOutcome.accepted;
         case TaskAcceptResult.pendingApproval:
@@ -338,16 +395,15 @@ class TaskProvider extends ChangeNotifier {
         taskId: taskId,
         ownerUserId: ownerUserId,
       );
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      _cachedTasks = refreshed;
-      _state = refreshed.isEmpty
-          ? ViewState<List<TaskModel>>.empty(
-              message: 'No tasks available right now.',
-            )
-          : ViewState<List<TaskModel>>.success(refreshed);
+      if (result.task != null) {
+        _cachedTasks = _upsertTaskList(_cachedTasks, result.task!);
+        _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, result.task!);
+      }
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
       notifyListeners();
 
-      switch (result) {
+      switch (result.outcome) {
         case TaskAcceptanceDecisionResult.accepted:
           return TaskAcceptanceDecisionOutcome.accepted;
         case TaskAcceptanceDecisionResult.declined:
@@ -375,16 +431,15 @@ class TaskProvider extends ChangeNotifier {
         taskId: taskId,
         ownerUserId: ownerUserId,
       );
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      _cachedTasks = refreshed;
-      _state = refreshed.isEmpty
-          ? ViewState<List<TaskModel>>.empty(
-              message: 'No tasks available right now.',
-            )
-          : ViewState<List<TaskModel>>.success(refreshed);
+      if (result.task != null) {
+        _cachedTasks = _upsertTaskList(_cachedTasks, result.task!);
+        _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, result.task!);
+      }
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
       notifyListeners();
 
-      switch (result) {
+      switch (result.outcome) {
         case TaskAcceptanceDecisionResult.accepted:
           return TaskAcceptanceDecisionOutcome.accepted;
         case TaskAcceptanceDecisionResult.declined:
@@ -412,16 +467,15 @@ class TaskProvider extends ChangeNotifier {
         taskId: taskId,
         helperUserId: helperUserId,
       );
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      _cachedTasks = refreshed;
-      _state = refreshed.isEmpty
-          ? ViewState<List<TaskModel>>.empty(
-              message: 'No tasks available right now.',
-            )
-          : ViewState<List<TaskModel>>.success(refreshed);
+      if (result.task != null) {
+        _cachedTasks = _upsertTaskList(_cachedTasks, result.task!);
+        _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, result.task!);
+      }
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
       notifyListeners();
 
-      switch (result) {
+      switch (result.outcome) {
         case TaskCompletionRequestResult.requested:
           return RequestCompletionOutcome.requested;
         case TaskCompletionRequestResult.notFound:
@@ -445,16 +499,15 @@ class TaskProvider extends ChangeNotifier {
         taskId: taskId,
         ownerUserId: ownerUserId,
       );
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      _cachedTasks = refreshed;
-      _state = refreshed.isEmpty
-          ? ViewState<List<TaskModel>>.empty(
-              message: 'No tasks available right now.',
-            )
-          : ViewState<List<TaskModel>>.success(refreshed);
+      if (result.task != null) {
+        _cachedTasks = _upsertTaskList(_cachedTasks, result.task!);
+        _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, result.task!);
+      }
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
       notifyListeners();
 
-      switch (result) {
+      switch (result.outcome) {
         case TaskCompletionConfirmResult.completed:
           return ConfirmCompletionOutcome.completed;
         case TaskCompletionConfirmResult.declined:
@@ -482,16 +535,15 @@ class TaskProvider extends ChangeNotifier {
         taskId: taskId,
         ownerUserId: ownerUserId,
       );
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      _cachedTasks = refreshed;
-      _state = refreshed.isEmpty
-          ? ViewState<List<TaskModel>>.empty(
-              message: 'No tasks available right now.',
-            )
-          : ViewState<List<TaskModel>>.success(refreshed);
+      if (result.task != null) {
+        _cachedTasks = _upsertTaskList(_cachedTasks, result.task!);
+        _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, result.task!);
+      }
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
       notifyListeners();
 
-      switch (result) {
+      switch (result.outcome) {
         case TaskCompletionConfirmResult.completed:
           return ConfirmCompletionOutcome.completed;
         case TaskCompletionConfirmResult.declined:
@@ -521,16 +573,15 @@ class TaskProvider extends ChangeNotifier {
         ownerUserId: ownerUserId,
         rating: rating,
       );
-      final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);
-      _cachedTasks = refreshed;
-      _state = refreshed.isEmpty
-          ? ViewState<List<TaskModel>>.empty(
-              message: 'No tasks available right now.',
-            )
-          : ViewState<List<TaskModel>>.success(refreshed);
+      if (result.task != null) {
+        _cachedTasks = _upsertTaskList(_cachedTasks, result.task!);
+        _cachedHistoryTasks = _upsertTaskList(_cachedHistoryTasks, result.task!);
+      }
+      _state = _toBrowseState(_cachedTasks);
+      _historyState = _toHistoryState(_cachedHistoryTasks);
       notifyListeners();
 
-      switch (result) {
+      switch (result.outcome) {
         case TaskRatingResult.rated:
           return SubmitRatingOutcome.rated;
         case TaskRatingResult.notFound:
@@ -547,5 +598,61 @@ class TaskProvider extends ChangeNotifier {
     } catch (_) {
       return SubmitRatingOutcome.failed;
     }
+  }
+
+  List<TaskModel> _upsertTaskList(List<TaskModel> source, TaskModel task) {
+    final next = List<TaskModel>.from(source);
+    final index = next.indexWhere((item) => item.id == task.id);
+    if (index < 0) {
+      next.insert(0, task);
+    } else {
+      next[index] = task;
+    }
+    return next;
+  }
+
+  void _updateTaskById(
+    String taskId,
+    TaskModel Function(TaskModel current) update,
+  ) {
+    _cachedTasks = _mapTaskListById(_cachedTasks, taskId, update);
+    _cachedHistoryTasks = _mapTaskListById(_cachedHistoryTasks, taskId, update);
+    _state = _toBrowseState(_cachedTasks);
+    _historyState = _toHistoryState(_cachedHistoryTasks);
+  }
+
+  List<TaskModel> _mapTaskListById(
+    List<TaskModel> source,
+    String taskId,
+    TaskModel Function(TaskModel current) update,
+  ) {
+    final next = List<TaskModel>.from(source);
+    final index = next.indexWhere((task) => task.id == taskId);
+    if (index < 0) {
+      return next;
+    }
+
+    next[index] = update(next[index]);
+    return next;
+  }
+
+  ViewState<List<TaskModel>> _toBrowseState(List<TaskModel> tasks) {
+    if (tasks.isEmpty) {
+      return ViewState<List<TaskModel>>.empty(
+        message: 'No tasks available right now.',
+      );
+    }
+
+    return ViewState<List<TaskModel>>.success(tasks);
+  }
+
+  ViewState<List<TaskModel>> _toHistoryState(List<TaskModel> tasks) {
+    if (tasks.isEmpty) {
+      return ViewState<List<TaskModel>>.empty(
+        message: 'No accepted or posted task history yet.',
+      );
+    }
+
+    return ViewState<List<TaskModel>>.success(tasks);
   }
 }

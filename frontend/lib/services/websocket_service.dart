@@ -12,10 +12,10 @@ class WebSocketService {
 
   WebSocketChannel? _channel;
   final StreamController<dynamic> _messageController = StreamController.broadcast();
-  Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   bool _shouldReconnect = true;
+  DateTime? _lastPingAt;
 
   Stream<dynamic> get messages => _messageController.stream;
 
@@ -68,21 +68,30 @@ class WebSocketService {
           _messageController.add(event);
         }
       }, onDone: _handleDone, onError: _handleError, cancelOnError: true);
-
-      _startHeartbeat();
+      await touch(force: true);
     } catch (e) {
       _messageController.add({'type': 'ERROR', 'error': e.toString()});
       _attemptReconnect();
     }
   }
 
-  void _startHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      try {
-        _channel?.sink.add(jsonEncode({'type': 'PING'}));
-      } catch (_) {}
-    });
+  Future<void> touch({bool force = false}) async {
+    if (_channel == null) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final lastPingAt = _lastPingAt;
+    if (!force &&
+        lastPingAt != null &&
+        now.difference(lastPingAt) < const Duration(seconds: 15)) {
+      return;
+    }
+
+    _lastPingAt = now;
+    try {
+      _channel?.sink.add(jsonEncode({'type': 'PING'}));
+    } catch (_) {}
   }
 
   void _handleDone() {
@@ -99,10 +108,10 @@ class WebSocketService {
 
   void _cleanupChannel() {
     try {
-      _heartbeatTimer?.cancel();
       _reconnectTimer?.cancel();
       _channel?.sink.close();
     } catch (_) {}
+    _lastPingAt = null;
     _channel = null;
   }
 
@@ -118,13 +127,13 @@ class WebSocketService {
 
   Future<void> send(String type, dynamic data) async {
     if (_channel == null) return;
+    await touch();
     final msg = jsonEncode({'type': type, 'data': data});
     _channel!.sink.add(msg);
   }
 
   Future<void> disconnect() async {
     _shouldReconnect = false;
-    _heartbeatTimer?.cancel();
     _reconnectTimer?.cancel();
     try {
       await _channel?.sink.close();

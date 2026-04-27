@@ -2,6 +2,25 @@ const {getRequiredFirestoreDb} = require('../config/firebase');
 const {buildPrefixedId} = require('../utils/id.util');
 const {toMessageRecord, normalizeString} = require('../models/message.model');
 
+function sanitizeWritePayload(record) {
+	if (!record || typeof record !== 'object' || Array.isArray(record)) {
+		return record;
+	}
+
+	const sanitized = {};
+	for (const [key, value] of Object.entries(record)) {
+		if (typeof value === 'undefined') {
+			continue;
+		}
+		if (value && typeof value === 'object' && !Array.isArray(value)) {
+			sanitized[key] = sanitizeWritePayload(value);
+			continue;
+		}
+		sanitized[key] = value;
+	}
+	return sanitized;
+}
+
 function normalizeMessageRecord(record) {
 	if (!record || typeof record !== 'object') {
 		return null;
@@ -107,7 +126,7 @@ async function createMessage(input) {
 	});
 
 	const db = getRequiredFirestoreDb();
-	await db.collection('messages').doc(created.id).set(created);
+	await db.collection('messages').doc(created.id).set(sanitizeWritePayload(created));
 
 	return toMessageRecord(created);
 }

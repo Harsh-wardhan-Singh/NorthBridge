@@ -83,6 +83,11 @@ async function notifyTaskAcceptanceDeclined(task, declinedHelperUserId) {
 async function notifyTaskCompleted(task) {
     try {
         websocketService.sendToUser(task.postedByUserId, {type: 'TASK_COMPLETED', data: task});
+        if (task.completedByUserId) {
+            websocketService.sendToUser(task.completedByUserId, {type: 'TASK_COMPLETED', data: task});
+        } else if (task.acceptedByUserId) {
+            websocketService.sendToUser(task.acceptedByUserId, {type: 'TASK_COMPLETED', data: task});
+        }
         safeFire(notificationService.notifyUser(task.postedByUserId, {type: 'TASK_COMPLETED', data: task}));
     } catch (e) {
         console.warn('notifyTaskCompleted error', e && e.message);
@@ -92,6 +97,12 @@ async function notifyTaskCompleted(task) {
 async function notifyTaskCompletionRequested(task) {
     try {
         websocketService.sendToUser(task.postedByUserId, {type: 'TASK_COMPLETION_REQUESTED', data: task});
+        if (task.completionRequestedByUserId) {
+            websocketService.sendToUser(task.completionRequestedByUserId, {
+                type: 'TASK_COMPLETION_REQUESTED',
+                data: task,
+            });
+        }
         safeFire(notificationService.notifyUser(task.postedByUserId, {type: 'TASK_COMPLETION_REQUESTED', data: task}));
     } catch (e) {
         console.warn('notifyTaskCompletionRequested error', e && e.message);
@@ -101,6 +112,12 @@ async function notifyTaskCompletionRequested(task) {
 async function notifyTaskCompletionDeclined(task) {
     try {
         websocketService.sendToUser(task.postedByUserId, {type: 'TASK_COMPLETION_DECLINED', data: task});
+        if (task.acceptedByUserId) {
+            websocketService.sendToUser(task.acceptedByUserId, {
+                type: 'TASK_COMPLETION_DECLINED',
+                data: task,
+            });
+        }
         safeFire(notificationService.notifyUser(task.postedByUserId, {type: 'TASK_COMPLETION_DECLINED', data: task}));
     } catch (e) {
         console.warn('notifyTaskCompletionDeclined error', e && e.message);

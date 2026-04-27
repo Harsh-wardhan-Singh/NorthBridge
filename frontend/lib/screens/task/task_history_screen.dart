@@ -9,7 +9,7 @@ import 'package:frontend/routes/app_routes.dart';
 import 'package:frontend/widgets/app_button.dart';
 import 'package:frontend/widgets/app_card.dart';
 
-class TaskHistoryScreen extends StatelessWidget {
+class TaskHistoryScreen extends StatefulWidget {
   const TaskHistoryScreen({
     super.key,
     required this.taskProvider,
@@ -20,6 +20,22 @@ class TaskHistoryScreen extends StatelessWidget {
 
   final TaskProvider taskProvider;
   final AuthProvider authProvider;
+
+  @override
+  State<TaskHistoryScreen> createState() => _TaskHistoryScreenState();
+}
+
+class _TaskHistoryScreenState extends State<TaskHistoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.authProvider.state.data == null) {
+        return;
+      }
+      widget.taskProvider.loadMyTaskHistoryIfStale();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +49,9 @@ class TaskHistoryScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: AnimatedBuilder(
-            animation: Listenable.merge([taskProvider, authProvider]),
+            animation: Listenable.merge([widget.taskProvider, widget.authProvider]),
             builder: (context, _) {
-              final user = authProvider.state.data;
+              final user = widget.authProvider.state.data;
               if (user == null) {
                 return Padding(
                   padding: AppSpacing.screenPadding,
@@ -67,17 +83,32 @@ class TaskHistoryScreen extends StatelessWidget {
                 );
               }
 
-              final acceptedTasks = taskProvider.tasks
+              if (!widget.taskProvider.historyState.isLoading &&
+                  widget.taskProvider.historyTasks.isEmpty) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) {
+                    return;
+                  }
+                  widget.taskProvider.loadMyTaskHistoryIfStale(force: true);
+                });
+              }
+
+              final acceptedTasks = widget.taskProvider.historyTasks
                   .where((task) => task.acceptedByUserId == user.id)
                   .toList(growable: false);
-                final ongoing = acceptedTasks
+              final ongoing = acceptedTasks
                   .where((task) => task.isActive)
                   .toList(growable: false);
-                final past = acceptedTasks
+              final past = acceptedTasks
                   .where((task) => !task.isActive)
                   .toList(growable: false);
               final totalEarned =
                   past.fold<double>(0, (sum, task) => sum + task.price);
+
+              if (widget.taskProvider.historyState.isLoading &&
+                  widget.taskProvider.historyTasks.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
               return ListView(
                 padding: AppSpacing.screenPadding,

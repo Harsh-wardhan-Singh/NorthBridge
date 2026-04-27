@@ -34,7 +34,6 @@ class _NorthBridgeAppState extends State<NorthBridgeApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _taskProvider = TaskProvider();
-    _taskProvider.loadTasks();
     _locationService = LocationService();
     _bootstrapAcceptorLocation();
     _chatProvider = ChatProvider();
@@ -83,21 +82,27 @@ class _NorthBridgeAppState extends State<NorthBridgeApp>
     }
 
     _initWebSocket();
-    _taskProvider.loadTasks();
+    _taskProvider.loadTasksIfStale();
     _authProvider.loadCurrentUser();
     if ((_authProvider.state.data?.id ?? '').isNotEmpty) {
+      _taskProvider.loadMyTaskHistoryIfStale();
       _chatProvider.loadChats();
     }
   }
 
   Future<void> _bootstrapAcceptorLocation() async {
     final location = await _locationService.tryGetCurrentLocation();
-    if (!mounted || location == null) {
+    if (!mounted) {
+      return;
+    }
+
+    if (location == null) {
+      await _taskProvider.loadTasksIfStale(force: true);
       return;
     }
 
     _taskProvider.setAcceptorLocation(lat: location.lat, lng: location.lng);
-    await _taskProvider.loadTasks();
+    await _taskProvider.loadTasksIfStale(force: true);
   }
 
   @override
