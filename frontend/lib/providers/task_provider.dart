@@ -259,6 +259,7 @@ class TaskProvider extends ChangeNotifier {
     required TaskExecutionMode executionMode,
     required String postedByUserId,
     required String postedByName,
+    TaskLocationGeo? locationGeo,
   }) async {
     _isCreating = true;
     notifyListeners();
@@ -273,6 +274,7 @@ class TaskProvider extends ChangeNotifier {
         executionMode: executionMode,
         postedByUserId: postedByUserId,
         postedByName: postedByName,
+        locationGeo: locationGeo,
       );
 
       final refreshed = await _taskService.fetchTasks(sortBy: _selectedSort);

@@ -110,6 +110,7 @@ class TaskService {
     required TaskExecutionMode executionMode,
     required String postedByUserId,
     required String postedByName,
+    TaskLocationGeo? locationGeo,
   }) async {
     final response = await _apiService.postJson(
       '/v1/tasks',
@@ -122,6 +123,7 @@ class TaskService {
         'executionMode': executionMode.storageValue,
         'postedByUserId': postedByUserId,
         'postedByName': postedByName,
+        'locationGeo': locationGeo?.toJson(),
       },
     );
 
@@ -365,6 +367,7 @@ class TaskService {
       body: {
         'transcript': text,
       },
+      timeout: const Duration(seconds: 50),
     );
 
     final rawDraft = response['draft'];

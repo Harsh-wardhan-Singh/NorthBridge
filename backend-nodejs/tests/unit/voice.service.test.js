@@ -70,4 +70,36 @@ describe('voice service cost-aware extraction strategy', () => {
 		expect(result).toHaveProperty('location', 'Gurgaon');
 		expect(result).toHaveProperty('price', 150);
 	});
+
+	test('parseVoiceTask returns Gemini-backed draft for frontend parse endpoint', async () => {
+		const generateContent = jest.fn(async () => ({
+			response: {
+				text: () =>
+					'{"title":"Math tutoring","description":"Need online math tutoring tomorrow","location":"Online","price":400,"scheduledAt":"2026-05-01T10:00:00.000Z","executionMode":"online"}',
+			},
+		}));
+		jest.doMock('@google/generative-ai', () => ({
+			GoogleGenerativeAI: jest.fn(() => ({
+				getGenerativeModel: () => ({generateContent}),
+			})),
+		}));
+
+		process.env.VOICE_AI_MODE = 'gemini-first';
+		process.env.GEMINI_API_KEY = 'dummy-key';
+		const {parseVoiceTask} = require('../../src/services/voice.service');
+
+		const result = await parseVoiceTask({
+			transcript: 'Need online math tutoring tomorrow for 400 rupees',
+		});
+
+		expect(result.ok).toBe(true);
+		expect(result.status).toBe(200);
+		expect(result.data).toMatchObject({
+			title: 'Math tutoring',
+			location: 'Online',
+			price: 400,
+			executionMode: 'online',
+		});
+		expect(generateContent).toHaveBeenCalledTimes(1);
+	});
 });

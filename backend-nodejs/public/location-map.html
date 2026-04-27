@@ -160,14 +160,23 @@
             <input id="acceptorLng" type="number" step="any" />
           </div>
         </div>
+        <div class="row">
+          <button id="useBrowserLocation" type="button">Use Browser Location</button>
+          <button id="loadNearbyTasks" class="secondary" type="button">Load Nearby Tasks</button>
+        </div>
         <button id="calcDistance" class="secondary" type="button">Calculate Distance</button>
         <p class="muted" id="distanceResult">Distance not calculated.</p>
+        <p class="muted" id="taskLoadStatus">Nearby tasks not loaded.</p>
       </section>
 
       <section class="group">
         <h2>Task Payload Example</h2>
         <p class="muted">Use this JSON in <code>POST /v1/tasks</code>.</p>
         <code id="payloadPreview">{}</code>
+      </section>
+      <section class="group">
+        <h2>Nearby Tasks</h2>
+        <code id="nearbyTasksPreview">[]</code>
       </section>
     </aside>
     <main id="map"></main>
@@ -191,10 +200,13 @@
     const acceptorLatInput = document.getElementById('acceptorLat');
     const acceptorLngInput = document.getElementById('acceptorLng');
     const payloadPreview = document.getElementById('payloadPreview');
+    const nearbyTasksPreview = document.getElementById('nearbyTasksPreview');
     const taskLabel = document.getElementById('taskLabel');
     const distanceResult = document.getElementById('distanceResult');
+    const taskLoadStatus = document.getElementById('taskLoadStatus');
 
     let marker = null;
+    let nearbyTaskMarkers = [];
 
     function readNumber(input) {
       const value = Number(input.value);
@@ -249,6 +261,53 @@
       payloadPreview.textContent = JSON.stringify(payload, null, 2);
     }
 
+    function clearNearbyTaskMarkers() {
+      for (const taskMarker of nearbyTaskMarkers) {
+        map.removeLayer(taskMarker);
+      }
+      nearbyTaskMarkers = [];
+    }
+
+    function renderNearbyTasks(tasks) {
+      clearNearbyTaskMarkers();
+      nearbyTasksPreview.textContent = JSON.stringify(tasks, null, 2);
+
+      for (const task of tasks) {
+        if (!task || !task.locationGeo || !isValidPoint(task.locationGeo.lat, task.locationGeo.lng)) {
+          continue;
+        }
+
+        const taskMarker = L.circleMarker([task.locationGeo.lat, task.locationGeo.lng], {
+          radius: 7,
+          color: '#0369a1',
+          fillColor: '#38bdf8',
+          fillOpacity: 0.8,
+        }).addTo(map);
+
+        taskMarker.bindPopup(
+          `<strong>${task.title || 'Task'}</strong><br/>${task.location || 'Unknown location'}<br/>Distance: ${
+            typeof task.distanceKm === 'number' ? `${task.distanceKm} km` : 'n/a'
+          }`
+        );
+        nearbyTaskMarkers.push(taskMarker);
+      }
+    }
+
+    async function fetchWithLongWait(url, options = {}) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+        });
+        return response;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
     function placeTaskMarker(lat, lng) {
       if (!isValidPoint(lat, lng)) {
         return;
@@ -301,6 +360,73 @@
       );
 
       distanceResult.textContent = `Distance from acceptor to task: ${distanceKm} km`;
+    });
+
+    document.getElementById('useBrowserLocation').addEventListener('click', () => {
+      taskLoadStatus.textContent = 'Waiting for browser location permission and response...';
+      if (!navigator.geolocation) {
+        taskLoadStatus.textContent = 'Browser geolocation is not available here.';
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          acceptorLatInput.value = String(lat);
+          acceptorLngInput.value = String(lng);
+          taskLoadStatus.textContent = `Browser location loaded (${lat.toFixed(6)}, ${lng.toFixed(6)}).`;
+          map.setView([lat, lng], Math.max(map.getZoom(), 13));
+        },
+        () => {
+          taskLoadStatus.textContent = 'Unable to fetch browser location.';
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 30000,
+          maximumAge: 60000,
+        }
+      );
+    });
+
+    document.getElementById('loadNearbyTasks').addEventListener('click', async () => {
+      const acceptorLat = readNumber(acceptorLatInput);
+      const acceptorLng = readNumber(acceptorLngInput);
+      if (!isValidPoint(acceptorLat, acceptorLng)) {
+        taskLoadStatus.textContent = 'Provide valid acceptor coordinates first.';
+        return;
+      }
+
+      taskLoadStatus.textContent = 'Loading nearby tasks from /v1/tasks. Waiting up to 45 seconds...';
+
+      try {
+        const url = new URL('/v1/tasks', window.location.origin);
+        url.searchParams.set('acceptorLat', String(acceptorLat));
+        url.searchParams.set('acceptorLng', String(acceptorLng));
+        url.searchParams.set('sortBy', 'distance');
+
+        const response = await fetchWithLongWait(url.toString(), {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          taskLoadStatus.textContent = `Failed to load tasks (${response.status}).`;
+          return;
+        }
+
+        const payload = await response.json();
+        const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+        renderNearbyTasks(tasks);
+        taskLoadStatus.textContent = `Loaded ${tasks.length} task(s) sorted by distance.`;
+      } catch (error) {
+        taskLoadStatus.textContent =
+          error && error.name === 'AbortError'
+            ? 'Nearby task request timed out after 45 seconds.'
+            : 'Unable to load nearby tasks.';
+      }
     });
 
     updatePayloadPreview();

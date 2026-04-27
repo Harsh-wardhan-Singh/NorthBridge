@@ -106,6 +106,7 @@ class ApiService {
 		Map<String, dynamic>? queryParameters,
 		Map<String, String>? headers,
 		String? bearerToken,
+		Duration? timeout,
 	}) {
 		return _sendJsonRequest(
 			method: ApiHttpMethod.get,
@@ -113,6 +114,7 @@ class ApiService {
 			queryParameters: queryParameters,
 			headers: headers,
 			bearerToken: bearerToken,
+			timeout: timeout,
 		);
 	}
 
@@ -122,6 +124,7 @@ class ApiService {
 		Map<String, dynamic>? queryParameters,
 		Map<String, String>? headers,
 		String? bearerToken,
+		Duration? timeout,
 	}) {
 		return _sendJsonRequest(
 			method: ApiHttpMethod.post,
@@ -130,6 +133,7 @@ class ApiService {
 			queryParameters: queryParameters,
 			headers: headers,
 			bearerToken: bearerToken,
+			timeout: timeout,
 		);
 	}
 
@@ -139,6 +143,7 @@ class ApiService {
 		Map<String, dynamic>? queryParameters,
 		Map<String, String>? headers,
 		String? bearerToken,
+		Duration? timeout,
 	}) {
 		return _sendJsonRequest(
 			method: ApiHttpMethod.patch,
@@ -147,6 +152,7 @@ class ApiService {
 			queryParameters: queryParameters,
 			headers: headers,
 			bearerToken: bearerToken,
+			timeout: timeout,
 		);
 	}
 
@@ -157,6 +163,7 @@ class ApiService {
 		Map<String, dynamic>? queryParameters,
 		Map<String, String>? headers,
 		String? bearerToken,
+		Duration? timeout,
 	}) async {
 		final startedAt = DateTime.now();
 		final uri = _buildUri(path, queryParameters);
@@ -183,7 +190,7 @@ class ApiService {
 				uri: uri,
 				headers: resolvedHeaders,
 				encodedBody: encodedBody,
-			).timeout(_timeout);
+			).timeout(timeout ?? _timeout);
 		} on http.ClientException catch (error) {
 			capturedException = ApiException(
 				message: 'Unable to connect to API server.',

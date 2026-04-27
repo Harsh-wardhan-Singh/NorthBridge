@@ -5,11 +5,13 @@ const {toVoiceTaskDraft} = require('../models/voice-task-draft.model');
 const {success, failure} = require('../utils/response.util');
 
 const geminiApiKey = process.env.GEMINI_API_KEY || '';
+const geminiModelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const voiceAiMode = envConfig.voiceAiMode;
 const geminiClient = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 const geminiModel = geminiClient
-	? geminiClient.getGenerativeModel({model: 'gemini-1.5-flash'})
+	? geminiClient.getGenerativeModel({model: geminiModelName})
 	: null;
+const GEMINI_TIMEOUT_MS = 45000;
 
 function cleanJson(text) {
 	if (typeof text !== 'string') {
@@ -22,15 +24,33 @@ function cleanJson(text) {
 function createFallbackUserFields(userText) {
 	const cleaned = typeof userText === 'string' ? userText.trim() : '';
 	const shortTitle = cleaned.slice(0, 40).trim();
+	const executionMode = detectExecutionMode(cleaned);
 
 	return {
 		title: shortTitle || 'Voice task',
 		description: cleaned || 'Voice task description',
-		location: 'Unknown',
+		location: executionMode === 'online' ? 'Online' : 'Unknown',
 		price: 0,
 		scheduledAt: null,
-		executionMode: 'offline',
+		executionMode,
 	};
+}
+
+function detectExecutionMode(text) {
+	const cleaned = typeof text === 'string' ? text.trim() : '';
+	if (!cleaned) {
+		return 'offline';
+	}
+
+	if (/\bonline\b|virtual|remote|zoom|meet|call/i.test(cleaned)) {
+		return 'online';
+	}
+
+	if (/\boffline\b|pickup|deliver|visit|come to|at my place|near me/i.test(cleaned)) {
+		return 'offline';
+	}
+
+	return 'offline';
 }
 
 function extractLocation(text) {
@@ -76,10 +96,10 @@ function extractTaskFieldsLocally(userText) {
 	return {
 		title,
 		description: cleaned,
-		location: extractLocation(cleaned),
+		location: fallback.executionMode === 'online' ? 'Online' : extractLocation(cleaned),
 		price: extractPrice(cleaned),
 		scheduledAt: null,
-		executionMode: 'offline',
+		executionMode: fallback.executionMode,
 	};
 }
 
@@ -121,8 +141,8 @@ function validateExtractedFields(fields) {
 	if (!(typeof fields.scheduledAt === 'string' || fields.scheduledAt === null)) {
 		throw new Error('scheduledAt must be a string or null');
 	}
-	if (fields.executionMode !== 'offline') {
-		throw new Error('executionMode must be offline');
+	if (fields.executionMode !== 'offline' && fields.executionMode !== 'online') {
+		throw new Error('executionMode must be offline or online');
 	}
 }
 
@@ -142,6 +162,10 @@ function normalizeExtractedFields(raw, userText) {
 	const price = typeof raw.price === 'number' && Number.isFinite(raw.price) ? raw.price : fallback.price;
 	const scheduledAt =
 		typeof raw.scheduledAt === 'string' && raw.scheduledAt.trim() ? raw.scheduledAt.trim() : null;
+	const executionMode =
+		typeof raw.executionMode === 'string' && raw.executionMode.trim().toLowerCase() === 'online'
+			? 'online'
+			: fallback.executionMode;
 
 	return {
 		title,
@@ -149,8 +173,26 @@ function normalizeExtractedFields(raw, userText) {
 		location,
 		price,
 		scheduledAt,
-		executionMode: 'offline',
+		executionMode,
 	};
+}
+
+function withTimeout(promise, timeoutMs, label) {
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(() => {
+			reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+		}, timeoutMs);
+
+		Promise.resolve(promise)
+			.then((value) => {
+				clearTimeout(timer);
+				resolve(value);
+			})
+			.catch((error) => {
+				clearTimeout(timer);
+				reject(error);
+			});
+	});
 }
 
 function parseGeminiJson(rawText) {
@@ -178,14 +220,19 @@ async function extractTaskFields(userText) {
 	const prompt = [
 		'Extract ONLY task fields provided by the user.',
 		'Return ONLY valid JSON with EXACTLY these keys:',
-		'{"title": string, "description": string, "location": string, "price": number, "scheduledAt": string|null, "executionMode": "offline"}',
+		'{"title": string, "description": string, "location": string, "price": number, "scheduledAt": string|null, "executionMode": "offline"|"online"}',
 		'Do not include id, status, user IDs, or any extra keys.',
+		'Use executionMode="online" only if the task is clearly remote/virtual, otherwise "offline".',
 		'Use defaults if missing: location="Unknown", price=0, scheduledAt=null, executionMode="offline".',
 		`User text: ${normalizedText}`,
 	].join('\n');
 
 	try {
-		const result = await geminiModel.generateContent(prompt);
+		const result = await withTimeout(
+			geminiModel.generateContent(prompt),
+			GEMINI_TIMEOUT_MS,
+			'Gemini task extraction',
+		);
 		const rawResponseText = result?.response?.text?.() || '';
 		const parsed = parseGeminiJson(rawResponseText);
 		const normalized = normalizeExtractedFields(parsed, normalizedText);
@@ -258,21 +305,20 @@ function parseVoiceTaskDraft(transcript) {
 	});
 }
 
-function parseVoiceTask(payload = {}) {
+async function parseVoiceTask(payload = {}) {
 	const validation = validateVoiceTaskPayload(payload);
 	if (!validation.valid) {
 		return failure(400, 'Transcript is required.');
 	}
 
-	const draft = parseVoiceTaskDraft(validation.value.transcript);
-	// Do not block: controllers may expect immediate draft; notify via websocket if requested
-	// If payload.userId is provided, emit VOICE_PARSED for that user
-	if (typeof validation.value.userId === 'string' && validation.value.userId.trim()) {
-		const eventService = require('./event.service');
-		Promise.resolve(eventService.notifyNewMessage({users: [validation.value.userId]}, {senderId: '', ...draft})).catch(() => {});
+	try {
+		const fields = await extractTaskFields(validation.value.transcript);
+		const draft = toVoiceTaskDraft(fields);
+		return success(200, draft);
+	} catch (_error) {
+		const draft = parseVoiceTaskDraft(validation.value.transcript);
+		return success(200, draft);
 	}
-
-	return success(200, draft);
 }
 
 module.exports = {
